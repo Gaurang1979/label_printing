@@ -21,16 +21,16 @@ label_printing.print_job = async function(frm, serials, options={}) {
     }));
     if (!template) return frappe.throw(__("No Active Label Template exists for {0} on printer {1}.",[source_doctype, printer]));
 
-    return await new Promise(resolve => frappe.call({
+    const job = await new Promise((resolve,reject) => frappe.call({
         method:"label_printing.print_api.create_print_job",
         args:{source_doctype,source_name,template,printer,serials,child_table:options.child_table||null,child_row_idx:row ? row.idx : null,reprint:!!options.reprint,reprint_reason:options.reprint_reason||null},
-        callback:r=>{
-            if(r.message){
-                frappe.show_alert({message:__("Print Job {0} created",[r.message]),indicator:"green"});
-                resolve(r.message);
-            }
-        }
+        callback:r=>r.message ? resolve(r.message) : reject(new Error(__("Unable to create print job."))),
+        error:reject
     }));
+
+    frappe.show_alert({message:__("Print Job {0} created",[job]),indicator:"green"});
+    await label_printing.execute_job_by_name(job);
+    return job;
 };
 
 label_printing.get_serials_from_bundle = function(frm, row) {
