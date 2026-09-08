@@ -13,21 +13,21 @@ def _value(doc, fieldname):
 def render_label(template, doc, serial_no=None, printer=None):
     printer_doc = frappe.get_doc('Manage Printer', printer) if printer else None
     dpi = int((printer_doc.dpi if printer_doc else 203) or 203)
-    width = float((printer_doc.label_width if printer_doc else template.label_width) or template.label_width)
-    height = float((printer_doc.label_height if printer_doc else template.label_height) or template.label_height)
+    width = float((printer_doc.label_width if printer_doc else template.label_width_mm) or template.label_width_mm)
+    height = float((printer_doc.label_height if printer_doc else template.label_height_mm) or template.label_height_mm)
     zpl = [label_start(width, height, dpi, printer_doc)]
     for obj in template.objects:
         value = _value(doc, obj.fieldname) if obj.fieldname else (obj.fixed_text or '')
         if obj.object_type == 'DataMatrix':
-            zpl.append(datamatrix(obj.x, obj.y, serial_no or value, obj.width, obj.rotation or '0', obj.datamatrix_scale or 5, dpi))
+            zpl.append(datamatrix(obj.x, obj.y, serial_no or value, obj.width or 10, obj.rotation or '0', obj.datamatrix_scale or 5, dpi))
         elif obj.object_type == 'QR Code':
-            zpl.append(qr(obj.x, obj.y, serial_no or value, obj.width, obj.rotation or '0', obj.datamatrix_scale or 4, dpi))
+            zpl.append(qr(obj.x, obj.y, serial_no or value, obj.width or 10, obj.rotation or '0', obj.datamatrix_scale or 4, dpi))
         elif obj.object_type == 'Text':
             zpl.append(text(obj.x, obj.y, value, obj.font_size or 20, obj.font or '0', obj.rotation or '0', obj.alignment or 'L', dpi))
         elif obj.object_type == 'Line':
-            zpl.append(line(obj.x, obj.y, obj.width, obj.height or 0, obj.font_size or 2, dpi))
+            zpl.append(line(obj.x, obj.y, obj.width or 1, obj.height or 0, obj.font_size or 2, dpi))
         elif obj.object_type == 'Rectangle':
-            zpl.append(rectangle(obj.x, obj.y, obj.width, obj.height, obj.font_size or 2, dpi))
+            zpl.append(rectangle(obj.x, obj.y, obj.width or 1, obj.height or 1, obj.font_size or 2, dpi))
     zpl.append(label_end())
     return ''.join(zpl)
 
@@ -57,6 +57,8 @@ def create_print_job(source_doctype, source_name, template, printer, serials, re
 @frappe.whitelist()
 def get_label_zpl(job, serial_no):
     job_doc = frappe.get_doc('Label Print Job', job)
+    row = next((r for r in job_doc.items if r.serial_no == serial_no), None)
+    if not row: frappe.throw(_('Serial {0} is not part of this print job.').format(serial_no))
     template = frappe.get_doc('Label Template', job_doc.template)
     source = frappe.get_doc(job_doc.source_doctype, job_doc.source_name)
     return render_label(template, source, serial_no, job_doc.printer)
@@ -67,7 +69,7 @@ def mark_printed(job, serial_no):
     job_doc = frappe.get_doc('Label Print Job', job)
     row = next((r for r in job_doc.items if r.serial_no == serial_no), None)
     if not row: frappe.throw(_('Serial {0} is not part of this print job.').format(serial_no))
-    row.status = 'Printed'; row.attempts = (row.attempts or 0) + 1; row.printed_on = frappe.utils.now_datetime(); row.error_message = ''
+    row.status='Printed'; row.attempts=(row.attempts or 0)+1; row.printed_on=frappe.utils.now_datetime(); row.error_message=''
     job_doc.save(ignore_permissions=True)
     frappe.get_doc({'doctype':'Label Print Log','print_job':job,'source_doctype':job_doc.source_doctype,'source_name':job_doc.source_name,'serial_no':serial_no,'template':job_doc.template,'template_version':job_doc.template_version,'printer':job_doc.printer,'user':frappe.session.user,'printed_on':frappe.utils.now_datetime(),'is_reprint':job_doc.reprint,'reprint_reason':job_doc.reprint_reason}).insert(ignore_permissions=True)
     _refresh_job_status(job_doc)
@@ -79,21 +81,19 @@ def mark_failed(job, serial_no, error_message=None):
     job_doc = frappe.get_doc('Label Print Job', job)
     row = next((r for r in job_doc.items if r.serial_no == serial_no), None)
     if not row: frappe.throw(_('Serial {0} is not part of this print job.').format(serial_no))
-    row.status = 'Failed'; row.attempts = (row.attempts or 0) + 1; row.error_message = error_message or _('Unknown printer error')
-    job_doc.status = 'Paused'; job_doc.save(ignore_permissions=True)
+    row.status='Failed'; row.attempts=(row.attempts or 0)+1; row.error_message=error_message or _('Unknown printer error')
+    job_doc.status='Paused'; job_doc.save(ignore_permissions=True)
     return True
 
 
 def _refresh_job_status(job_doc):
-    printed = len([r for r in job_doc.items if r.status == 'Printed'])
-    pending = len([r for r in job_doc.items if r.status != 'Printed'])
-    job_doc.printed_labels = printed; job_doc.pending_labels = pending
-    job_doc.last_completed_serial = next((r.serial_no for r in reversed(job_doc.items) if r.status == 'Printed'), '')
-    job_doc.status = 'Completed' if pending == 0 else 'Printing'
-    job_doc.db_update()
+    printed=len([r for r in job_doc.items if r.status=='Printed']); pending=len([r for r in job_doc.items if r.status!='Printed'])
+    job_doc.printed_labels=printed; job_doc.pending_labels=pending
+    job_doc.last_completed_serial=next((r.serial_no for r in reversed(job_doc.items) if r.status=='Printed'),'')
+    job_doc.status='Completed' if pending==0 else 'Printing'; job_doc.db_update()
 
 
 @frappe.whitelist()
 def find_reprint_source(serial_no):
-    rows = frappe.db.sql('''select source_doctype, source_name from `tabLabel Print Log` where serial_no=%s order by printed_on desc limit 1''', serial_no, as_dict=True)
+    rows=frappe.db.sql('''select source_doctype, source_name, template, template_version, printer from `tabLabel Print Log` where serial_no=%s order by printed_on desc limit 1''',serial_no,as_dict=True)
     return rows[0] if rows else None
