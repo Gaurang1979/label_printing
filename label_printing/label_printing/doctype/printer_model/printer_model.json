@@ -1,0 +1,16 @@
+{
+ "doctype":"DocType","name":"Printer Model","module":"Label Printing","custom":1,"autoname":"field:model_name","title_field":"model_name","fields":[
+ {"fieldname":"model_name","label":"Model Name","fieldtype":"Data","reqd":1,"unique":1},
+ {"fieldname":"manufacturer","label":"Manufacturer","fieldtype":"Data"},
+ {"fieldname":"printer_technology","label":"Printer Technology","fieldtype":"Select","options":"Thermal Transfer\nDirect Thermal"},
+ {"fieldname":"dpi","label":"DPI","fieldtype":"Select","options":"203\n300\n600"},
+ {"fieldname":"zpl_supported","label":"ZPL-II Supported","fieldtype":"Check","default":"1"},
+ {"fieldname":"browser_print_supported","label":"Browser Print Supported","fieldtype":"Check","default":"1"},
+ {"fieldname":"active","label":"Active","fieldtype":"Check","default":"1"},
+ {"fieldname":"notes","label":"Notes","fieldtype":"Small Text"}
+ ],"permissions":[
+ {"role":"Label Printing Manager","read":1,"write":1,"create":1,"delete":1},
+ {"role":"Label Printing Administrator","read":1,"write":1,"create":1,"delete":1},
+ {"role":"System Manager","read":1,"write":1,"create":1,"delete":1}
+ ]
+}
