@@ -1,0 +1,9 @@
+{
+ "doctype":"DocType","name":"Label Print Job Item","module":"Label Printing","istable":1,"custom":1,"editable_grid":1,"fields":[
+ {"fieldname":"serial_no","label":"Serial No","fieldtype":"Data","reqd":1},
+ {"fieldname":"status","label":"Status","fieldtype":"Select","options":"Pending\nSent\nPrinting\nPrinted\nFailed\nPaused\nCancelled","default":"Pending","reqd":1},
+ {"fieldname":"attempts","label":"Attempts","fieldtype":"Int","default":"0"},
+ {"fieldname":"printed_on","label":"Printed On","fieldtype":"Datetime"},
+ {"fieldname":"error_message","label":"Error Message","fieldtype":"Small Text"}
+ ]
+}
