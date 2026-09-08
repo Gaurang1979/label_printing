@@ -1,0 +1,13 @@
+{
+ "doctype":"DocType","name":"User Printer Preference","module":"Label Printing","custom":1,"autoname":"format:{user}-{branch}","fields":[
+ {"fieldname":"user","label":"User","fieldtype":"Link","options":"User","reqd":1},
+ {"fieldname":"branch","label":"Location / Branch","fieldtype":"Link","options":"Branch","reqd":1},
+ {"fieldname":"default_printer","label":"Default Printer","fieldtype":"Link","options":"Manage Printer","reqd":1},
+ {"fieldname":"enabled","label":"Enabled","fieldtype":"Check","default":"1"}
+ ],"permissions":[
+ {"role":"Label Printing User","read":1,"write":1,"create":1},
+ {"role":"Label Printing Manager","read":1,"write":1,"create":1,"delete":1},
+ {"role":"Label Printing Administrator","read":1,"write":1,"create":1,"delete":1},
+ {"role":"System Manager","read":1,"write":1,"create":1,"delete":1}
+ ]
+}
