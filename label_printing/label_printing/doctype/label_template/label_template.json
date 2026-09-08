@@ -1,25 +1,45 @@
 {
- "doctype":"DocType","name":"Label Template","module":"Label Printing","custom":1,"autoname":"field:template_name","title_field":"template_name","field_order":["template_name","source_doctype","column_main_2","source_child_table","printer","version","status","section_label","label_width_mm","label_height_mm","column_size_2","margin_left_mm","margin_top_mm","notes","section_objects","objects"],"fields":[
- {"fieldname":"template_name","label":"Template Name","fieldtype":"Data","reqd":1,"unique":1,"in_list_view":1},
- {"fieldname":"source_doctype","label":"ERPNext DocType","fieldtype":"Link","options":"DocType","reqd":1,"in_list_view":1},
- {"fieldname":"column_main_2","fieldtype":"Column Break"},
- {"fieldname":"source_child_table","label":"Item / Child Table","fieldtype":"Select","description":"For Purchase Receipt choose Items. Each item row can print directly.","in_list_view":1},
- {"fieldname":"printer","label":"Printer","fieldtype":"Link","options":"Manage Printer","reqd":1,"in_list_view":1},
- {"fieldname":"version","label":"Version","fieldtype":"Int","default":"1","read_only":1},
- {"fieldname":"status","label":"Status","fieldtype":"Select","options":"Draft\nActive\nArchived","default":"Draft","reqd":1,"in_list_view":1},
- {"fieldname":"section_label","label":"Label Size — managed by Printer","fieldtype":"Section Break"},
- {"fieldname":"label_width_mm","label":"Width (mm)","fieldtype":"Float","read_only":1},
- {"fieldname":"label_height_mm","label":"Height (mm)","fieldtype":"Float","read_only":1},
- {"fieldname":"column_size_2","fieldtype":"Column Break"},
- {"fieldname":"margin_left_mm","label":"Left Margin (mm)","fieldtype":"Float","default":"0"},
- {"fieldname":"margin_top_mm","label":"Top Margin (mm)","fieldtype":"Float","default":"0"},
- {"fieldname":"notes","label":"Notes","fieldtype":"Small Text"},
- {"fieldname":"section_objects","label":"Label Design","fieldtype":"Section Break"},
- {"fieldname":"objects","label":"Design Objects","fieldtype":"Table","options":"Label Template Object","reqd":1}
- ],"permissions":[
- {"role":"Label Printing User","read":1},
- {"role":"Label Printing Manager","read":1,"write":1,"create":1,"delete":1},
- {"role":"Label Printing Administrator","read":1,"write":1,"create":1,"delete":1},
- {"role":"System Manager","read":1,"write":1,"create":1,"delete":1}
- ]
+  "doctype":"DocType",
+  "name":"Label Template",
+  "module":"Label Printing",
+  "custom":1,
+  "autoname":"field:template_name",
+  "title_field":"template_name",
+  "field_order":["template_name","source_doctype","source_child_table","printer","version","status","column_top_2","section_label","label_width_mm","label_height_mm","number_of_ups","label_pitch_mm","horizontal_gap_mm","vertical_gap_mm","column_label_2","media_type","print_method","orientation","margin_left_mm","margin_right_mm","margin_top_mm","margin_bottom_mm","column_media_2","section_design","designer_hint","notes","section_objects","objects"],
+  "fields":[
+    {"fieldname":"template_name","label":"Template Name","fieldtype":"Data","reqd":1,"unique":1,"in_list_view":1},
+    {"fieldname":"source_doctype","label":"ERPNext DocType","fieldtype":"Link","options":"DocType","reqd":1,"in_list_view":1},
+    {"fieldname":"source_child_table","label":"Item / Child Table","fieldtype":"Select","reqd":1,"description":"Select the child table used for item-level printing.","in_list_view":1},
+    {"fieldname":"printer","label":"Compatible Printer","fieldtype":"Link","options":"Manage Printer","reqd":1,"in_list_view":1},
+    {"fieldname":"version","label":"Version","fieldtype":"Int","default":"1","read_only":1,"in_list_view":1},
+    {"fieldname":"status","label":"Status","fieldtype":"Select","options":"Draft\nActive\nArchived","default":"Draft","reqd":1,"in_list_view":1},
+    {"fieldname":"column_top_2","fieldtype":"Column Break"},
+    {"fieldname":"section_label","label":"Physical Label / Media","fieldtype":"Section Break"},
+    {"fieldname":"label_width_mm","label":"Label Width (mm)","fieldtype":"Float","reqd":1,"description":"Actual label width. This belongs to the template, not the printer."},
+    {"fieldname":"label_height_mm","label":"Label Height (mm)","fieldtype":"Float","reqd":1},
+    {"fieldname":"number_of_ups","label":"Number of Ups","fieldtype":"Int","reqd":1,"default":"1","description":"Number of labels across the web/media."},
+    {"fieldname":"label_pitch_mm","label":"Label Pitch (mm)","fieldtype":"Float","description":"Distance from the start of one label to the start of the next label."},
+    {"fieldname":"horizontal_gap_mm","label":"Horizontal Gap (mm)","fieldtype":"Float","default":"0"},
+    {"fieldname":"vertical_gap_mm","label":"Vertical Gap (mm)","fieldtype":"Float","default":"0"},
+    {"fieldname":"column_label_2","fieldtype":"Column Break"},
+    {"fieldname":"media_type","label":"Media Type","fieldtype":"Select","options":"Gap / Notch\nBlack Mark\nContinuous","default":"Gap / Notch","reqd":1},
+    {"fieldname":"print_method","label":"Print Method","fieldtype":"Select","options":"Direct Thermal\nThermal Transfer","default":"Direct Thermal","reqd":1},
+    {"fieldname":"orientation","label":"Orientation","fieldtype":"Select","options":"Normal\nRotate 90\nRotate 180\nRotate 270","default":"Normal","reqd":1},
+    {"fieldname":"margin_left_mm","label":"Left Margin (mm)","fieldtype":"Float","default":"0"},
+    {"fieldname":"margin_right_mm","label":"Right Margin (mm)","fieldtype":"Float","default":"0"},
+    {"fieldname":"margin_top_mm","label":"Top Margin (mm)","fieldtype":"Float","default":"0"},
+    {"fieldname":"margin_bottom_mm","label":"Bottom Margin (mm)","fieldtype":"Float","default":"0"},
+    {"fieldname":"column_media_2","fieldtype":"Column Break"},
+    {"fieldname":"section_design","label":"Visual Designer","fieldtype":"Section Break"},
+    {"fieldname":"designer_hint","label":"Designer","fieldtype":"HTML","options":"<div class=\"text-muted\">Use <b>Open Designer</b> from the Design menu to create the label visually. Objects are stored in the table below.</div>"},
+    {"fieldname":"notes","label":"Notes","fieldtype":"Small Text"},
+    {"fieldname":"section_objects","label":"Design Objects","fieldtype":"Section Break","collapsible":1},
+    {"fieldname":"objects","label":"Objects","fieldtype":"Table","options":"Label Template Object","reqd":0}
+  ],
+  "permissions":[
+    {"role":"Label Printing User","read":1},
+    {"role":"Label Printing Manager","read":1,"write":1,"create":1,"delete":1},
+    {"role":"Label Printing Administrator","read":1,"write":1,"create":1,"delete":1},
+    {"role":"System Manager","read":1,"write":1,"create":1,"delete":1}
+  ]
 }
