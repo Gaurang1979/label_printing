@@ -1,0 +1,19 @@
+{
+ "doctype":"DocType","name":"Label Template","module":"Label Printing","custom":1,"autoname":"field:template_name","title_field":"template_name","fields":[
+ {"fieldname":"template_name","label":"Template Name","fieldtype":"Data","reqd":1,"unique":1},
+ {"fieldname":"source_doctype","label":"Source DocType","fieldtype":"Link","options":"DocType","reqd":1},
+ {"fieldname":"version","label":"Version","fieldtype":"Int","default":"1","read_only":1},
+ {"fieldname":"status","label":"Status","fieldtype":"Select","options":"Draft\nActive\nArchived","default":"Draft","reqd":1},
+ {"fieldname":"label_width_mm","label":"Label Width (mm)","fieldtype":"Float","reqd":1},
+ {"fieldname":"label_height_mm","label":"Label Height (mm)","fieldtype":"Float","reqd":1},
+ {"fieldname":"margin_left_mm","label":"Left Margin (mm)","fieldtype":"Float"},
+ {"fieldname":"margin_top_mm","label":"Top Margin (mm)","fieldtype":"Float"},
+ {"fieldname":"notes","label":"Notes","fieldtype":"Small Text"},
+ {"fieldname":"objects","label":"Objects","fieldtype":"Table","options":"Label Template Object"}
+ ],"permissions":[
+ {"role":"Label Printing User","read":1},
+ {"role":"Label Printing Manager","read":1,"write":1,"create":1,"delete":1},
+ {"role":"Label Printing Administrator","read":1,"write":1,"create":1,"delete":1},
+ {"role":"System Manager","read":1,"write":1,"create":1,"delete":1}
+ ]
+}
