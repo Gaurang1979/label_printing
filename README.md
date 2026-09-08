@@ -1,41 +1,63 @@
 # ERPNext Label Printing
 
-ERPNext v16 custom app for serial-number labels and Zebra ZPL-II printing.
+ERPNext v16 custom app for direct Zebra ZPL-II label printing from ERPNext documents.
 
-## Architecture
+## Design principles
 
-ERPNext browser -> ZPL-II -> Zebra Browser Print -> Zebra printer.
+- One printer master: **Manage Printer**. No separate Printer Model or User Printer Preference documents.
+- Label size, DPI, media, print speed, darkness and printer offsets are configured only in Manage Printer.
+- Label Template reads physical width/height from its selected printer; those values are read-only in the template.
+- ERPNext parent fields and child-table item fields are discovered automatically.
+- Labels can be printed directly from individual item rows in Purchase Receipt, Stock Entry and Stock Reconciliation.
+- Zebra Browser Print is used for workstation USB/network printing; PDF is not the normal print path.
 
-PDF is not the normal printing path. USB printers are connected to the workstation running the ERPNext browser and Zebra Browser Print.
+## Core documents
 
-## Included
+- Manage Printer
+- Label Template
+- Label Template Object
+- Label Print Job
+- Label Print Job Item
+- Label Print Log
 
-- Printer Model and Manage Printer masters
-- Branch/location and warehouse-aware printer resolution
-- User + location printer preferences
-- Zebra DPI, media, offsets, darkness, speed and advanced ZPL settings
-- Browser Print discovery and test-print diagnostics
-- Label Template with version/status control
-- Label Template Object support for Text, DataMatrix, QR, Line and Rectangle
-- Visual template designer and layout validation
-- Label Print Job / Job Item queue with per-serial status
-- Print/resume workflow for pending and failed labels
-- Serial No damaged-label reprint with mandatory reason
-- Label Print Log audit trail
-- Purchase Receipt, Stock Entry and Stock Reconciliation Print Labels actions
-- Automatic serial extraction from Serial and Batch Bundle where available
-- Installation-time Label Printing roles
+## Zebra ZD230 starter configuration
 
-## Location logic
+When Printer Model is set to `Zebra ZD230`, the app pre-populates common starting values:
 
-Printer selection is resolved in this order:
+- 203 DPI
+- Browser Print - USB
+- Gap / Notch media
+- Direct Thermal
+- 4 IPS
+- Darkness 10
+- Code page 27
+- Home/offset values 0
 
-1. User Printer Preference for the Branch/location
-2. Default Manage Printer for the Branch
-3. Default printer for the Warehouse
-4. Enabled system default printer
+The physical label width and height are deliberately entered by the user because they depend on the actual label stock. Zebra documents a 104 mm maximum print width for the 203 DPI ZD230 and the ZD200-series guide documents 4 IPS and darkness 10 as defaults. Always qualify the actual media and calibrate before production use.
 
-## Install / update
+## Label Designer
+
+Open **Label Template → Design → Open Designer**.
+
+The designer provides a clean two-column workspace with:
+
+- live label preview
+- ERPNext parent field selection
+- ERPNext child/item field selection
+- Text, DataMatrix, QR Code, Image, Line and Rectangle
+- X/Y/width/height in mm
+- rotation and font size
+- layer order
+- immediate preview while editing
+- layout validation
+
+For Purchase Receipt, select `Purchase Receipt` and child table `items`. The designer then exposes fields from the Purchase Receipt and Purchase Receipt Item DocTypes.
+
+## Direct item-row printing
+
+Each serial-enabled item row can show **Print Labels**. Clicking it reads serials from the row's Serial and Batch Bundle, resolves the location printer, finds the active template for that DocType and printer, creates a tracked Print Job, sends ZPL through Browser Print and records per-serial results.
+
+## Installation / update
 
 ```bash
 cd ~/frappe-bench/apps/label_printing
@@ -44,34 +66,10 @@ git pull origin main
 cd ~/frappe-bench
 bench --site erp.sundaramtech.com migrate
 bench --site erp.sundaramtech.com clear-cache
+bench build
 bench restart
 ```
 
-For a new site:
+## Browser Print
 
-```bash
-bench --site erp.sundaramtech.com install-app label_printing
-```
-
-## First setup
-
-1. Create Printer Model, for example Zebra ZD230.
-2. Create Manage Printer and assign Branch, optional Warehouse, DPI and label dimensions.
-3. Mark exactly one enabled printer as the location default.
-4. Install/start Zebra Browser Print on each workstation that physically uses a Zebra printer.
-5. Create an Active Label Template for each source DocType.
-6. Open Designer, add Text/DataMatrix/QR/Line/Rectangle objects and map fields.
-7. Submit a Purchase Receipt with serial/batch bundle data.
-8. Use Labels -> Print Labels, select serials, then open the generated Label Print Job and choose Print / Resume.
-
-## Resume behavior
-
-A job tracks each serial independently. Printed serials are not sent again when Print / Resume is used. A failed serial is marked Failed and the job is paused; after the printer problem is fixed, Print / Resume continues from the first pending/failed serial.
-
-Physical printer acknowledgement is not treated as proof that media physically exited the printer. For controlled production use, verify the first label and use Reprint Label when a label is damaged.
-
-## Roles
-
-- Label Printing User: normal printing and read access
-- Label Printing Manager: templates, printers, jobs and reprints
-- Label Printing Administrator: full label-printing administration
+Zebra Browser Print must be installed and running on the workstation that has access to the Zebra printer. The ERPNext server does not need direct USB access to the printer.
