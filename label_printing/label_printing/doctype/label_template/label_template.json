@@ -1,15 +1,19 @@
 {
- "doctype":"DocType","name":"Label Template","module":"Label Printing","custom":1,"autoname":"field:template_name","title_field":"template_name","fields":[
- {"fieldname":"template_name","label":"Template Name","fieldtype":"Data","reqd":1,"unique":1},
- {"fieldname":"source_doctype","label":"Source DocType","fieldtype":"Link","options":"DocType","reqd":1},
+ "doctype":"DocType","name":"Label Template","module":"Label Printing","custom":1,"autoname":"field:template_name","title_field":"template_name","field_order":["template_name","source_doctype","source_child_table","printer","version","status","section_label","label_width_mm","label_height_mm","margin_left_mm","margin_top_mm","notes","section_objects","objects"],"fields":[
+ {"fieldname":"template_name","label":"Template Name","fieldtype":"Data","reqd":1,"unique":1,"in_list_view":1},
+ {"fieldname":"source_doctype","label":"ERPNext DocType","fieldtype":"Link","options":"DocType","reqd":1,"in_list_view":1},
+ {"fieldname":"source_child_table","label":"Item / Child Table","fieldtype":"Select","description":"Optional child table whose rows are printed. For Purchase Receipt use Items.","in_list_view":1},
+ {"fieldname":"printer","label":"Printer","fieldtype":"Link","options":"Manage Printer","reqd":1,"in_list_view":1},
  {"fieldname":"version","label":"Version","fieldtype":"Int","default":"1","read_only":1},
- {"fieldname":"status","label":"Status","fieldtype":"Select","options":"Draft\nActive\nArchived","default":"Draft","reqd":1},
- {"fieldname":"label_width_mm","label":"Label Width (mm)","fieldtype":"Float","reqd":1},
- {"fieldname":"label_height_mm","label":"Label Height (mm)","fieldtype":"Float","reqd":1},
- {"fieldname":"margin_left_mm","label":"Left Margin (mm)","fieldtype":"Float"},
- {"fieldname":"margin_top_mm","label":"Top Margin (mm)","fieldtype":"Float"},
+ {"fieldname":"status","label":"Status","fieldtype":"Select","options":"Draft\nActive\nArchived","default":"Draft","reqd":1,"in_list_view":1},
+ {"fieldname":"section_label","label":"Label Size — from Printer","fieldtype":"Section Break"},
+ {"fieldname":"label_width_mm","label":"Label Width (mm)","fieldtype":"Float","read_only":1,"description":"Automatically read from the selected printer. Do not configure here."},
+ {"fieldname":"label_height_mm","label":"Label Height (mm)","fieldtype":"Float","read_only":1,"description":"Automatically read from the selected printer. Do not configure here."},
+ {"fieldname":"margin_left_mm","label":"Left Margin (mm)","fieldtype":"Float","default":"0"},
+ {"fieldname":"margin_top_mm","label":"Top Margin (mm)","fieldtype":"Float","default":"0"},
  {"fieldname":"notes","label":"Notes","fieldtype":"Small Text"},
- {"fieldname":"objects","label":"Objects","fieldtype":"Table","options":"Label Template Object"}
+ {"fieldname":"section_objects","label":"Label Design","fieldtype":"Section Break"},
+ {"fieldname":"objects","label":"Design Objects","fieldtype":"Table","options":"Label Template Object","reqd":1}
  ],"permissions":[
  {"role":"Label Printing User","read":1},
  {"role":"Label Printing Manager","read":1,"write":1,"create":1,"delete":1},
