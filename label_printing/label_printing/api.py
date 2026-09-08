@@ -5,11 +5,7 @@ from frappe import _
 def _get_location_printer(branch):
     if not branch:
         return None
-    return frappe.db.get_value(
-        "Manage Printer",
-        {"branch": branch, "enabled": 1, "is_default_for_location": 1},
-        "name",
-    )
+    return frappe.db.get_value("Manage Printer", {"branch": branch, "enabled": 1, "is_default_for_location": 1}, "name")
 
 
 @frappe.whitelist()
@@ -30,11 +26,7 @@ def get_printer(printer):
 
 
 def _field_options(meta):
-    return [
-        {"value": f.fieldname, "label": f.label or f.fieldname, "fieldtype": f.fieldtype}
-        for f in meta.fields
-        if f.fieldname and f.fieldtype not in {"Section Break", "Column Break", "Tab Break", "HTML"}
-    ]
+    return [{"value": f.fieldname, "label": f.label or f.fieldname, "fieldtype": f.fieldtype} for f in meta.fields if f.fieldname and f.fieldtype not in {"Section Break", "Column Break", "Tab Break", "HTML"}]
 
 
 @frappe.whitelist()
@@ -47,16 +39,27 @@ def get_doctype_fields(doctype, child_table=None):
         table_field = meta.get_field(child_table)
         if table_field and table_field.fieldtype == "Table":
             child_meta = frappe.get_meta(table_field.options)
-            fields.extend({**f, "group": "Item / Row"} for f in _field_options(child_meta))
+            fields.extend({**f, "group": f"Child · {child_meta.name}"} for f in _field_options(child_meta))
     return fields
 
 
 @frappe.whitelist()
 def get_child_tables(doctype):
+    """Return every Table field plus its actual child DocType. No user mapping is involved."""
     if not doctype:
         return []
     meta = frappe.get_meta(doctype)
-    return [{"value": f.fieldname, "label": f.label or f.fieldname, "options": f.options} for f in meta.fields if f.fieldtype == "Table"]
+    result = []
+    for f in meta.fields:
+        if f.fieldtype == "Table" and f.options:
+            result.append({
+                "value": f.fieldname,
+                "label": f.label or f.fieldname,
+                "options": f.options,
+                "child_doctype": f.options,
+                "display": f"{f.label or f.fieldname} ({f.options})",
+            })
+    return result
 
 
 @frappe.whitelist()
