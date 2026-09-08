@@ -5,7 +5,7 @@ app_description = "ERPNext Zebra ZPL-II label printing"
 app_email = ""
 app_license = "GPL-3.0"
 required_apps = ["frappe", "erpnext"]
-app_include_js = ["/assets/label_printing/js/manage_printer.js", "/assets/label_printing/js/browser_print.js", "/assets/label_printing/js/label_printing.js"]
+app_include_js = ["/assets/label_printing/js/manage_printer.js", "/assets/label_printing/js/browser_print.js", "/assets/label_printing/js/label_printing.js", "/assets/label_printing/js/label_print_job.js"]
 after_install = "label_printing.install.after_install"
 
 doctype_js = {
