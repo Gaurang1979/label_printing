@@ -7,6 +7,8 @@ app_license = "GPL-3.0"
 
 required_apps = ["frappe", "erpnext"]
 
+app_include_js = ["/assets/label_printing/js/manage_printer.js"]
+
 fixtures = []
 
 permission_query_conditions = {}
