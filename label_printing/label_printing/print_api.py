@@ -1,11 +1,6 @@
 import frappe
 from frappe import _
-from .zpl import label_start, label_end, text, datamatrix, qr, esc, mm_to_dots
-
-
-@frappe.whitelist()
-def resolve_printer(branch=None, warehouse=None):
-    return frappe.call('label_printing.api.get_default_printer', branch=branch, warehouse=warehouse)
+from .zpl import label_start, label_end, text, datamatrix, qr, mm_to_dots
 
 
 def _value(doc, fieldname):
@@ -60,3 +55,11 @@ def create_print_job(source_doctype, source_name, template, printer, serials, re
         job.append('items', {'serial_no': serial, 'status': 'Pending'})
     job.insert(ignore_permissions=True)
     return job.name
+
+
+@frappe.whitelist()
+def find_reprint_source(serial_no):
+    if not serial_no:
+        return None
+    rows = frappe.db.sql('''select source_doctype, source_name from `tabLabel Print Log` where serial_no=%s order by printed_on desc limit 1''', serial_no, as_dict=True)
+    return rows[0] if rows else None
