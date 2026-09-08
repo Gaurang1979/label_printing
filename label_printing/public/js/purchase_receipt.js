@@ -16,9 +16,11 @@ frappe.ui.form.on("Purchase Receipt", {
                 primary_action_label:__("Print"),
                 primary_action:async values=>{
                     const selected = new Set(values.serials || []);
-                    for (const group of Object.groupBy(choices.filter(x=>selected.has(x.serial)), x=>x.row_idx)) {
-                        const row = frm.doc.items.find(r=>String(r.idx)===String(group));
-                        if (row) await label_printing.print_job(frm, choices.filter(x=>selected.has(x.serial) && String(x.row_idx)===String(group)).map(x=>x.serial), {row,child_table:"items"});
+                    const groups = {};
+                    choices.forEach(x => { if (selected.has(x.serial)) (groups[x.row_idx] ||= []).push(x.serial); });
+                    for (const row_idx of Object.keys(groups)) {
+                        const row = frm.doc.items.find(r=>String(r.idx)===String(row_idx));
+                        if (row) await label_printing.print_job(frm, groups[row_idx], {row,child_table:"items"});
                     }
                     d.hide();
                 }
@@ -33,8 +35,7 @@ frappe.ui.form.on("Purchase Receipt Item", {
         const row = locals[cdt][cdn];
         const grid_row = frm.fields_dict.items.grid.grid_rows_by_docname[cdn];
         if (!grid_row || !row) return;
-        const area = grid_row.row.find(".label-print-row-action");
-        if (area.length) return;
+        if (grid_row.row.find(".label-print-row-action").length) return;
         const button = $(`<button type="button" class="btn btn-xs btn-default label-print-row-action" style="margin:4px 8px">${__("Print Labels")}</button>`);
         button.on("click", () => label_printing.print_item_row(frm, row, "items"));
         grid_row.row.find(".grid-static-col:last").append(button);
