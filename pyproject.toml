@@ -1,0 +1,8 @@
+[project]
+name = "label_printing"
+version = "0.1.0"
+description = "ERPNext Zebra label printing and label designer"
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 100
