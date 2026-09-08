@@ -1,21 +1,35 @@
-frappe.ui.form.on('Manage Printer', {
+frappe.ui.form.on("Manage Printer", {
     refresh(frm) {
         if (frm.is_new()) return;
-        frm.add_custom_button(__('Discover Printers'), () => {
+        frm.add_custom_button(__("Discover Printers"), () => {
+            if (!label_printing.browser_print.available()) return frappe.msgprint(__("Zebra Browser Print is not detected on this workstation."));
             label_printing.browser_print.discover(devices => {
-                const rows = (devices || []).map(d => `<tr><td>${frappe.utils.escape_html(d.name || '')}</td><td>${frappe.utils.escape_html(d.connection || '')}</td><td>${frappe.utils.escape_html(d.uid || '')}</td></tr>`).join('');
-                frappe.msgprint({title:__('Zebra Printers'),message:`<table class="table"><tr><th>Name</th><th>Connection</th><th>UID</th></tr>${rows || '<tr><td colspan="3">No printer detected</td></tr>'}</table>`});
+                const options = (devices || []).map(d => `<b>${frappe.utils.escape_html(d.name || "Unknown")}</b> ${d.uid ? "(" + frappe.utils.escape_html(d.uid) + ")" : ""}`).join("<br>");
+                frappe.msgprint({title:__("Browser Print Devices"),message:options || __("No Zebra printers found.")});
             });
-        }, __('Diagnostics'));
-        frm.add_custom_button(__('Test Print'), () => {
-            const zpl = '^XA^FO40,40^A0N,35,35^FDERPNext Label Printing^FS^FO40,90^A0N,25,25^FDZebra Browser Print Test^FS^XZ';
-            label_printing.browser_print.init(device => label_printing.browser_print.print(zpl, device, err => err ? frappe.msgprint(String(err)) : frappe.show_alert({message:__('Test label sent'),indicator:'green'})));
-        }, __('Diagnostics'));
-        frm.add_custom_button(__('Feed'), () => {
-            label_printing.browser_print.init(device => label_printing.browser_print.print('^XA^FO0,0^FDFEED^FS^XZ', device, err => err && frappe.msgprint(String(err))));
-        }, __('Diagnostics'));
-        frm.add_custom_button(__('Printer Settings Check'), () => {
-            frappe.call({method:'label_printing.api.get_printer',args:{printer:frm.doc.name},callback:r=>r.message&&frappe.msgprint({title:__('Printer Configuration'),message:`<pre>${frappe.utils.escape_html(JSON.stringify(r.message,null,2))}</pre>`})});
-        }, __('Diagnostics'));
+        }, __("Diagnostics"));
+        frm.add_custom_button(__("Configuration Check"), () => {
+            frappe.call({method:"label_printing.api.get_printer",args:{printer:frm.doc.name},callback:r=>{
+                if(r.message) frappe.msgprint({title:__("Printer Configuration"),message:`<pre>${frappe.utils.escape_html(JSON.stringify(r.message,null,2))}</pre>`});
+            }});
+        }, __("Diagnostics"));
+    },
+    printer_model(frm) {
+        if (frm.doc.printer_model === "Zebra ZD230") {
+            frm.set_value("manufacturer", "Zebra");
+            frm.set_value("dpi", "203");
+            frm.set_value("media_type", "Gap / Notch");
+            frm.set_value("print_speed", "4");
+            frm.set_value("darkness", 10);
+            frm.set_value("print_method", "Direct Thermal");
+            frm.set_value("connection_type", "Browser Print - USB");
+            frm.set_value("codepage", "27");
+        }
+    },
+    connection_type(frm) {
+        const network = frm.doc.connection_type === "Browser Print - Network";
+        frm.toggle_display("ip_address", network);
+        frm.toggle_display("port", network);
+        frm.toggle_display("browser_print_name", !network);
     }
 });
