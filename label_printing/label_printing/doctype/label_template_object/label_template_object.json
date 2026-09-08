@@ -1,18 +1,28 @@
 {
- "doctype":"DocType","name":"Label Template Object","module":"Label Printing","istable":1,"custom":1,"editable_grid":1,"field_order":["object_type","fieldname","fixed_text","x_mm","y_mm","width_mm","height_mm","rotation","font","font_size","alignment","data_matrix_scale","image_url","z_index"],"fields":[
- {"fieldname":"object_type","label":"Object","fieldtype":"Select","options":"Text\nDataMatrix\nQR Code\nImage\nLine\nRectangle","reqd":1,"in_list_view":1},
- {"fieldname":"fieldname","label":"ERPNext Field","fieldtype":"Select","in_list_view":1},
- {"fieldname":"fixed_text","label":"Fixed Text","fieldtype":"Small Text"},
- {"fieldname":"x_mm","label":"X (mm)","fieldtype":"Float","reqd":1,"default":"2"},
- {"fieldname":"y_mm","label":"Y (mm)","fieldtype":"Float","reqd":1,"default":"2"},
- {"fieldname":"width_mm","label":"Width (mm)","fieldtype":"Float","default":"20"},
- {"fieldname":"height_mm","label":"Height (mm)","fieldtype":"Float","default":"6"},
- {"fieldname":"rotation","label":"Rotation","fieldtype":"Select","options":"0\n90\n180\n270","default":"0"},
- {"fieldname":"font","label":"Font","fieldtype":"Data","default":"0"},
- {"fieldname":"font_size","label":"Font Size","fieldtype":"Int","default":"28"},
- {"fieldname":"alignment","label":"Alignment","fieldtype":"Select","options":"Left\nCenter\nRight","default":"Left"},
- {"fieldname":"data_matrix_scale","label":"2D Code Size","fieldtype":"Int","default":"5"},
- {"fieldname":"image_url","label":"Image / Logo","fieldtype":"Attach Image"},
- {"fieldname":"z_index","label":"Layer","fieldtype":"Int","default":"1"}
- ]
+  "doctype":"DocType",
+  "name":"Label Template Object",
+  "module":"Label Printing",
+  "istable":1,
+  "custom":1,
+  "editable_grid":1,
+  "field_order":["object_type","fieldname","fixed_text","barcode_type","barcode_value_mode","font","font_size","alignment","x_mm","y_mm","width_mm","height_mm","rotation","data_matrix_scale","image_url","image_fit","z_index"],
+  "fields":[
+    {"fieldname":"object_type","label":"Object","fieldtype":"Select","options":"Text\nBarcode\nQR Code\nDataMatrix\nPDF417\nAztec\nImage\nLine\nRectangle","reqd":1,"in_list_view":1},
+    {"fieldname":"fieldname","label":"ERPNext Field","fieldtype":"Data","in_list_view":1,"description":"ERPNext field path. The visual designer provides a selectable field list."},
+    {"fieldname":"fixed_text","label":"Fixed Text","fieldtype":"Small Text"},
+    {"fieldname":"barcode_type","label":"Barcode Type","fieldtype":"Select","options":"Code 128\nCode 39\nCode 93\nEAN-8\nEAN-13\nUPC-A\nUPC-E\nITF\nCodabar\nGS1-128\nGS1 DataBar"},
+    {"fieldname":"barcode_value_mode","label":"Barcode Value","fieldtype":"Select","options":"ERPNext Field\nFixed Value","default":"ERPNext Field"},
+    {"fieldname":"font","label":"Font","fieldtype":"Data","default":"0"},
+    {"fieldname":"font_size","label":"Font Size","fieldtype":"Int","default":"28"},
+    {"fieldname":"alignment","label":"Alignment","fieldtype":"Select","options":"Left\nCenter\nRight","default":"Left"},
+    {"fieldname":"x_mm","label":"X (mm)","fieldtype":"Float","reqd":1,"default":"2"},
+    {"fieldname":"y_mm","label":"Y (mm)","fieldtype":"Float","reqd":1,"default":"2"},
+    {"fieldname":"width_mm","label":"Width (mm)","fieldtype":"Float","default":"20"},
+    {"fieldname":"height_mm","label":"Height (mm)","fieldtype":"Float","default":"6"},
+    {"fieldname":"rotation","label":"Rotation","fieldtype":"Select","options":"0\n90\n180\n270","default":"0"},
+    {"fieldname":"data_matrix_scale","label":"2D Code Size","fieldtype":"Int","default":"5"},
+    {"fieldname":"image_url","label":"Image / Logo","fieldtype":"Attach Image"},
+    {"fieldname":"image_fit","label":"Image Fit","fieldtype":"Select","options":"Contain\nCover\nStretch","default":"Contain"},
+    {"fieldname":"z_index","label":"Layer","fieldtype":"Int","default":"1"}
+  ]
 }
