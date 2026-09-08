@@ -4,15 +4,18 @@ app_publisher = "Sundaram Technologies"
 app_description = "ERPNext Zebra ZPL-II label printing"
 app_email = ""
 app_license = "GPL-3.0"
-
 required_apps = ["frappe", "erpnext"]
+app_include_js = ["/assets/label_printing/js/manage_printer.js", "/assets/label_printing/js/browser_print.js", "/assets/label_printing/js/label_printing.js"]
 
-app_include_js = ["/assets/label_printing/js/manage_printer.js"]
+doc_events = {}
+
+doctypes = {
+    "Purchase Receipt": "label_printing/public/js/purchase_receipt.js",
+    "Stock Entry": "label_printing/public/js/stock_entry.js",
+    "Stock Reconciliation": "label_printing/public/js/stock_reconciliation.js",
+    "Serial No": "label_printing/public/js/serial_no.js",
+}
 
 fixtures = []
-
 permission_query_conditions = {}
-
-scheduler_events = {
-    "all": []
-}
+scheduler_events = {"all": []}
