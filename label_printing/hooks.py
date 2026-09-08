@@ -7,13 +7,13 @@ app_license = "GPL-3.0"
 required_apps = ["frappe", "erpnext"]
 app_include_js = ["/assets/label_printing/js/manage_printer.js", "/assets/label_printing/js/browser_print.js", "/assets/label_printing/js/label_printing.js"]
 
-doctypes = {
-    "Purchase Receipt": "label_printing/public/js/purchase_receipt.js",
-    "Stock Entry": "label_printing/public/js/stock_entry.js",
-    "Stock Reconciliation": "label_printing/public/js/stock_reconciliation.js",
-    "Serial No": "label_printing/public/js/serial_no.js",
-    "Label Print Job": "label_printing/public/js/label_print_job.js",
-    "Label Template": "label_printing/public/js/label_template.js",
+doctype_js = {
+    "Purchase Receipt": "public/js/purchase_receipt.js",
+    "Stock Entry": "public/js/stock_entry.js",
+    "Stock Reconciliation": "public/js/stock_reconciliation.js",
+    "Serial No": "public/js/serial_no.js",
+    "Label Print Job": "public/js/label_print_job.js",
+    "Label Template": "public/js/label_template.js",
 }
 
 fixtures = []
