@@ -1,20 +1,19 @@
 {
- "doctype":"DocType","name":"Label Print Log","module":"Label Printing","custom":1,"autoname":"format:LPL-{YYYY}-{#####}","fields":[
- {"fieldname":"print_job","label":"Print Job","fieldtype":"Link","options":"Label Print Job","reqd":1},
- {"fieldname":"source_doctype","label":"Source DocType","fieldtype":"Link","options":"DocType"},
- {"fieldname":"source_name","label":"Source Document","fieldtype":"Dynamic Link","options":"source_doctype"},
- {"fieldname":"serial_no","label":"Serial No","fieldtype":"Data","reqd":1},
- {"fieldname":"template","label":"Template","fieldtype":"Link","options":"Label Template"},
- {"fieldname":"template_version","label":"Template Version","fieldtype":"Int"},
- {"fieldname":"printer","label":"Printer","fieldtype":"Link","options":"Manage Printer"},
- {"fieldname":"user","label":"User","fieldtype":"Link","options":"User"},
- {"fieldname":"printed_on","label":"Printed On","fieldtype":"Datetime"},
- {"fieldname":"is_reprint","label":"Reprint","fieldtype":"Check"},
- {"fieldname":"reprint_reason","label":"Reprint Reason","fieldtype":"Data"}
- ],"permissions":[
- {"role":"Label Printing User","read":1},
- {"role":"Label Printing Manager","read":1},
- {"role":"Label Printing Administrator","read":1},
- {"role":"System Manager","read":1}
- ]
+  "doctype":"DocType","name":"Label Print Log","module":"Label Printing","custom":1,"autoname":"format:LPL-{YYYY}-{#####}",
+  "field_order":["print_job","source_doctype","source_name","serial_no","template","template_version","column_1","printer","user","printed_on","is_reprint","reprint_reason"],
+  "fields":[
+    {"fieldname":"print_job","label":"Print Job","fieldtype":"Link","options":"Label Print Job","reqd":1,"in_list_view":1},
+    {"fieldname":"source_doctype","label":"Source DocType","fieldtype":"Link","options":"DocType"},
+    {"fieldname":"source_name","label":"Source Document","fieldtype":"Dynamic Link","options":"source_doctype"},
+    {"fieldname":"serial_no","label":"Serial No","fieldtype":"Data","reqd":1,"in_list_view":1},
+    {"fieldname":"template","label":"Template","fieldtype":"Link","options":"Label Template"},
+    {"fieldname":"template_version","label":"Template Version","fieldtype":"Int"},
+    {"fieldname":"column_1","fieldtype":"Column Break"},
+    {"fieldname":"printer","label":"Printer","fieldtype":"Link","options":"Manage Printer"},
+    {"fieldname":"user","label":"User","fieldtype":"Link","options":"User"},
+    {"fieldname":"printed_on","label":"Printed On","fieldtype":"Datetime"},
+    {"fieldname":"is_reprint","label":"Reprint","fieldtype":"Check"},
+    {"fieldname":"reprint_reason","label":"Reprint Reason","fieldtype":"Data"}
+  ],
+  "permissions":[{"role":"Label Printing User","read":1},{"role":"Label Printing Manager","read":1},{"role":"Label Printing Administrator","read":1},{"role":"System Manager","read":1}]
 }
