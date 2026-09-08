@@ -1,1 +1,1 @@
-label_printing.patches.v1_0.remove_redundant_doctypes.execute
+label_printing.patches.v1_0.remove_redundant_doctypes
