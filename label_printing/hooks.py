@@ -13,6 +13,7 @@ doctypes = {
     "Stock Reconciliation": "label_printing/public/js/stock_reconciliation.js",
     "Serial No": "label_printing/public/js/serial_no.js",
     "Label Print Job": "label_printing/public/js/label_print_job.js",
+    "Label Template": "label_printing/public/js/label_template.js",
 }
 
 fixtures = []
