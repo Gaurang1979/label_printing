@@ -1,0 +1,18 @@
+{
+ "doctype":"DocType","name":"Label Template Object","module":"Label Printing","istable":1,"custom":1,"editable_grid":1,"fields":[
+ {"fieldname":"object_type","label":"Object Type","fieldtype":"Select","options":"Text\nDataMatrix\nQR Code\nImage\nLine\nRectangle","reqd":1},
+ {"fieldname":"fieldname","label":"ERPNext Field","fieldtype":"Data"},
+ {"fieldname":"fixed_text","label":"Fixed Text","fieldtype":"Small Text"},
+ {"fieldname":"x_mm","label":"X (mm)","fieldtype":"Float","reqd":1},
+ {"fieldname":"y_mm","label":"Y (mm)","fieldtype":"Float","reqd":1},
+ {"fieldname":"width_mm","label":"Width (mm)","fieldtype":"Float"},
+ {"fieldname":"height_mm","label":"Height (mm)","fieldtype":"Float"},
+ {"fieldname":"rotation","label":"Rotation","fieldtype":"Select","options":"0\n90\n180\n270","default":"0"},
+ {"fieldname":"font","label":"Font","fieldtype":"Data","default":"0"},
+ {"fieldname":"font_size","label":"Font Size","fieldtype":"Int"},
+ {"fieldname":"alignment","label":"Alignment","fieldtype":"Select","options":"Left\nCenter\nRight","default":"Left"},
+ {"fieldname":"data_matrix_scale","label":"DataMatrix Scale","fieldtype":"Int","default":"5"},
+ {"fieldname":"image_url","label":"Image URL","fieldtype":"Attach Image"},
+ {"fieldname":"z_index","label":"Z Index","fieldtype":"Int","default":"1"}
+ ]
+}
