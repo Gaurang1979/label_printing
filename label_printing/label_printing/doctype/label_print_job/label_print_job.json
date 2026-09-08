@@ -1,5 +1,5 @@
 {
- "doctype":"DocType","name":"Label Print Job","module":"Label Printing","custom":1,"autoname":"format:LPJ-{YYYY}-{#####}","title_field":"name","fields":[
+ "doctype":"DocType","name":"Label Print Job","module":"Label Printing","custom":1,"is_submittable":1,"autoname":"format:LPJ-{YYYY}-{#####}","title_field":"name","fields":[
  {"fieldname":"status","label":"Status","fieldtype":"Select","options":"Queued\nPrinting\nPaused\nCompleted\nFailed\nCancelled","default":"Queued","reqd":1,"read_only":1},
  {"fieldname":"source_doctype","label":"Source DocType","fieldtype":"Link","options":"DocType","reqd":1},
  {"fieldname":"source_name","label":"Source Document","fieldtype":"Dynamic Link","options":"source_doctype","reqd":1},
@@ -16,8 +16,8 @@
  {"fieldname":"items","label":"Serials","fieldtype":"Table","options":"Label Print Job Item"}
  ],"permissions":[
  {"role":"Label Printing User","read":1,"create":1},
- {"role":"Label Printing Manager","read":1,"write":1,"create":1,"delete":1},
- {"role":"Label Printing Administrator","read":1,"write":1,"create":1,"delete":1},
- {"role":"System Manager","read":1,"write":1,"create":1,"delete":1}
+ {"role":"Label Printing Manager","read":1,"write":1,"create":1,"delete":1,"submit":1},
+ {"role":"Label Printing Administrator","read":1,"write":1,"create":1,"delete":1,"submit":1},
+ {"role":"System Manager","read":1,"write":1,"create":1,"delete":1,"submit":1}
  ]
 }
