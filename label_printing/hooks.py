@@ -5,11 +5,11 @@ app_description = "ERPNext Zebra ZPL-II label printing"
 app_email = ""
 app_license = "GPL-3.0"
 required_apps = ["frappe", "erpnext"]
-app_include_js = ["/assets/label_printing/js/manage_printer.js", "/assets/label_printing/js/browser_print.js", "/assets/label_printing/js/label_print_job.js"]
+app_include_js = ["/assets/label_printing/js/manage_printer.js", "/assets/label_printing/js/browser_print.js", "/assets/label_printing/js/label_printing.js", "/assets/label_printing/js/label_print_job.js"]
 after_install = "label_printing.install.after_install"
 after_migrate = ["label_printing.install.ensure_printing_workspace_shortcuts"]
 
-doctypes_js = {
+doctype_js = {
     "Purchase Receipt": "public/js/purchase_receipt.js",
     "Stock Entry": "public/js/stock_entry.js",
     "Stock Reconciliation": "public/js/stock_reconciliation.js",
