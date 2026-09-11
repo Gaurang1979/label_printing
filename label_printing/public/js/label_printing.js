@@ -82,8 +82,210 @@ label_printing.get_serials_from_bundle = function(frm,row) {
     return new Promise(resolve=>frappe.call({method:"frappe.client.get",args:{doctype:"Serial and Batch Bundle",name:row.serial_and_batch_bundle},callback:r=>resolve((r.message&&r.message.entries||[]).filter(e=>e.serial_no).map(e=>e.serial_no))}));
 };
 
-label_printing.print_item_row = async function(frm,row,child_table) {
-    const serials=await label_printing.get_serials_from_bundle(frm,row);
-    if(!serials.length) return frappe.msgprint(__("No serial numbers were found for item row {0}.",[row.idx]));
-    return label_printing.print_job(frm,serials,{row,child_table});
+// Resolves a row's serial numbers regardless of which ERPNext storage style is
+// active: the v15+/v16 default "Serial and Batch Bundle" link, or the legacy
+// "Use Serial / Batch Fields" plain-text serial_no column some sites re-enable.
+label_printing.get_row_serials = async function(row) {
+    if (!row) return [];
+    if (row.serial_and_batch_bundle) {
+        return await label_printing.get_serials_from_bundle(null, row);
+    }
+    if (row.serial_no) {
+        return String(row.serial_no).split(/[,\n]/).map(s => s.trim()).filter(Boolean);
+    }
+    return [];
 };
+
+
+// ---------------------------------------------------------------------------
+// Generic "Print Label" button framework.
+//
+// A DocType needs ZERO custom JS to get Print Label buttons: it only needs
+// one or more Active Label Templates configured against it (Label Template >
+// Parent ERPNext DocType), each naming its own button via "Print Button
+// Label". One DocType can carry several active templates/buttons at once
+// (e.g. "Print Shipping Label" + "Print Serial Number Label" on the same
+// Delivery Note), fully configured from the Label Template list -- no code
+// changes needed to add a new label type to a new DocType.
+//
+// This runs on every document form via the framework's own doctype-agnostic
+// "form-refresh" event (NOT frappe.ui.form.on("*", ...), which does not
+// exist / does not fire in Frappe -- form-refresh is the real mechanism the
+// framework itself fires on every render_form regardless of doctype).
+// ---------------------------------------------------------------------------
+
+label_printing.resolve_row_identities = async function(row) {
+    const serials = await label_printing.get_row_serials(row);
+    if (serials.length) return serials;
+    // Generic fallback for child tables with no serial/batch tracking at all:
+    // one label per row, identified by the row's own unique name.
+    return row && row.name ? [row.name] : [];
+};
+
+label_printing.print_via_row_template = async function(frm, template) {
+    const child_table = template.source_child_table;
+    const rows = frm.doc[child_table] || [];
+    if (!rows.length) return frappe.msgprint(__("{0} has no rows to print labels for.", [child_table]));
+
+    const choices = [];
+    for (const row of rows) {
+        const ids = await label_printing.resolve_row_identities(row);
+        ids.forEach(id => choices.push({ id, row }));
+    }
+    if (!choices.length) {
+        return frappe.msgprint(__("Nothing found to print. Make sure serial numbers are set on this document."));
+    }
+
+    const d = new frappe.ui.Dialog({
+        title: template.print_button_label || __("Print Labels"),
+        size: "large",
+        fields: [{
+            fieldname: "ids", fieldtype: "MultiCheck",
+            label: __("Select what to print"),
+            options: choices.map(c => c.id), columns: 2,
+        }],
+        primary_action_label: __("Print"),
+        primary_action: async (values) => {
+            const selected = new Set(values.ids || []);
+            if (!selected.size) return frappe.msgprint(__("Select at least one."));
+            const by_row = {};
+            choices.forEach(c => {
+                if (!selected.has(c.id)) return;
+                (by_row[c.row.idx] = by_row[c.row.idx] || { row: c.row, ids: [] }).ids.push(c.id);
+            });
+            d.hide();
+            for (const key of Object.keys(by_row)) {
+                const group = by_row[key];
+                await label_printing.print_job(frm, group.ids, {
+                    row: group.row, child_table, template: template.name, printer: template.printer,
+                });
+            }
+        },
+    });
+    d.show();
+};
+
+label_printing.print_via_document_template = async function(frm, template) {
+    const d = new frappe.ui.Dialog({
+        title: template.print_button_label || __("Print Label"),
+        fields: [{
+            fieldname: "copies", fieldtype: "Int", label: __("Number of Labels"),
+            default: 1, reqd: 1,
+            description: __("More than 1 prints {0}-1, {0}-2 ... as separate labels (e.g. multiple cartons/pallets).", [frm.doc.name]),
+        }],
+        primary_action_label: __("Print"),
+        primary_action: async (values) => {
+            const n = Math.max(1, cint(values.copies) || 1);
+            const ids = n === 1 ? [frm.doc.name] : Array.from({ length: n }, (_, i) => `${frm.doc.name}-${i + 1}`);
+            d.hide();
+            await label_printing.print_job(frm, ids, { template: template.name, printer: template.printer });
+        },
+    });
+    d.show();
+};
+
+label_printing.open_reprint_dialog = async function(frm) {
+    const is_serial_doctype = frm.doctype === "Serial No";
+    const candidates = is_serial_doctype ? [] : await new Promise(resolve => frappe.call({
+        method: "label_printing.api.get_reprint_candidates",
+        args: { source_doctype: frm.doctype, source_name: frm.doc.name },
+        callback: r => resolve(r.message || []),
+    }));
+
+    const fields = [];
+    if (is_serial_doctype) {
+        fields.push({ fieldname: "serial_no", fieldtype: "Data", label: __("Label / Serial Number"), default: frm.doc.name, read_only: 1, reqd: 1 });
+    } else if (candidates.length) {
+        fields.push({ fieldname: "serial_no", fieldtype: "Select", label: __("Label / Serial Number"), options: candidates, reqd: 1 });
+    } else {
+        fields.push({
+            fieldname: "serial_no", fieldtype: "Data", label: __("Label / Serial Number"), reqd: 1,
+            description: __("No earlier print was found for this document yet. Enter the exact serial / label identity that was printed."),
+        });
+    }
+    fields.push({ fieldname: "reason", fieldtype: "Small Text", label: __("Reason"), reqd: 1 });
+
+    const d = new frappe.ui.Dialog({
+        title: __("Reprint / Damaged Label"),
+        fields,
+        primary_action_label: __("Reprint"),
+        primary_action: async (values) => {
+            let source;
+            try {
+                source = await new Promise((resolve, reject) => frappe.call({
+                    method: "label_printing.print_api.find_reprint_source",
+                    args: { serial_no: values.serial_no },
+                    callback: r => r.message ? resolve(r.message) : reject(new Error(__("No earlier print found for this label."))),
+                    error: reject,
+                }));
+            } catch (e) {
+                return frappe.msgprint(e.message);
+            }
+            d.hide();
+            await label_printing.print_job(frm, [values.serial_no], {
+                source_doctype: source.source_doctype, source_name: source.source_name,
+                template: source.template, printer: source.printer,
+                reprint: true, reprint_reason: values.reason,
+            });
+        },
+    });
+    d.show();
+};
+
+label_printing.setup_print_buttons = async function(frm) {
+    if (!frm || frm.is_new()) return;
+    const meta = frappe.get_meta(frm.doctype);
+    if (!meta || meta.istable) return;
+    if (meta.is_submittable && frm.doc.docstatus !== 1) return;
+
+    let templates = [];
+    try {
+        templates = await new Promise(resolve => frappe.call({
+            method: "label_printing.api.get_print_buttons",
+            args: { doctype: frm.doctype },
+            callback: r => resolve(r.message || []),
+        }));
+    } catch (e) {
+        templates = [];
+    }
+
+    templates.forEach(template => {
+        frm.add_custom_button(template.print_button_label || template.name, () => {
+            if (template.source_child_table) label_printing.print_via_row_template(frm, template);
+            else label_printing.print_via_document_template(frm, template);
+        }, __("Labels"));
+    });
+
+    if (frm.doctype === "Serial No" || templates.length) {
+        frm.add_custom_button(__("Reprint / Damaged Label"), () => label_printing.open_reprint_dialog(frm), __("Labels"));
+    }
+
+    // Row-level quick-print button per template bound to a child table.
+    templates.filter(t => t.source_child_table).forEach(template => {
+        const field = frm.fields_dict[template.source_child_table];
+        const grid = field && field.grid;
+        if (!grid) return;
+        const flag = "__lp_bound_" + template.name;
+        if (grid[flag]) return;
+        grid[flag] = true;
+        grid.wrapper.on("grid-row-render." + flag, function (e, grid_row) {
+            const row = grid_row && grid_row.doc;
+            const cls = "lp-row-btn-" + template.name;
+            if (!row || grid_row.row.find("." + cls).length) return;
+            const button = $(`<button type="button" class="btn btn-xs btn-default ${cls}" style="margin:2px">${frappe.utils.escape_html(template.print_button_label || __("Print"))}</button>`);
+            button.on("click", async (ev) => {
+                ev.stopPropagation();
+                const ids = await label_printing.resolve_row_identities(row);
+                if (!ids.length) return frappe.msgprint(__("Nothing to print for row {0}.", [row.idx]));
+                await label_printing.print_job(frm, ids, {
+                    row, child_table: template.source_child_table, template: template.name, printer: template.printer,
+                });
+            });
+            grid_row.row.find(".grid-static-col:last").append(button);
+        });
+    });
+};
+
+$(document).on("form-refresh", function (e, frm) {
+    label_printing.setup_print_buttons(frm);
+});

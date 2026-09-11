@@ -36,7 +36,7 @@
     {"fieldname":"vertical_offset","label":"Vertical Offset (dots)","fieldtype":"Int","default":"0"},
     {"fieldname":"label_home_x","label":"Label Home X (dots)","fieldtype":"Int","default":"0"},
     {"fieldname":"label_home_y","label":"Label Home Y (dots)","fieldtype":"Int","default":"0"},
-    {"fieldname":"codepage","label":"Code Page","fieldtype":"Data","default":"27"},
+    {"fieldname":"codepage","label":"Code Page","fieldtype":"Data","default":"0","description":"ZPL ^CI value. 0 = USA1 (safe default, single-byte ASCII). 13 = Zebra Code Page 850 (Latin, more accented characters). 28 = UTF-8. See the ^CI command in Zebra's ZPL Programming Guide before changing this."},
     {"fieldname":"column_calibration_2","fieldtype":"Column Break"},
     {"fieldname":"section_diagnostics","label":"Diagnostics","fieldtype":"Section Break"},
     {"fieldname":"last_status","label":"Last Browser Print Status","fieldtype":"Small Text","read_only":1},

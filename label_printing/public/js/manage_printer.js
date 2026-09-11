@@ -18,12 +18,11 @@ frappe.ui.form.on("Manage Printer", {
         if (frm.doc.printer_model === "Zebra ZD230") {
             frm.set_value("manufacturer", "Zebra");
             frm.set_value("dpi", "203");
-            frm.set_value("media_type", "Gap / Notch");
             frm.set_value("print_speed", "4");
             frm.set_value("darkness", 10);
             frm.set_value("print_method", "Direct Thermal");
             frm.set_value("connection_type", "Browser Print - USB");
-            frm.set_value("codepage", "27");
+            frm.set_value("codepage", "0");
         }
     },
     connection_type(frm) {
