@@ -1,41 +1,29 @@
 frappe.pages['label-designer'].on_page_load = function(wrapper) {
-    const page = frappe.ui.make_app_page({parent: wrapper, title: __('Label Designer'), single_column: false});
+    const page = frappe.ui.make_app_page({parent: wrapper, title: __('Label Designer'), single_column: true});
     const $wrapper = $(wrapper);
     const $root = $wrapper.find('.layout-main-section');
-    const $side = $wrapper.find('.layout-side-section');
-
-    $side.html(`
-        <div style="padding:12px 10px">
-            <div style="font-weight:700;margin-bottom:10px">${__('Label Printing')}</div>
-            <a class="lp-side-link" data-route="label-template">${__('Label Templates')}</a>
-            <a class="lp-side-link" data-route="manage-printer">${__('Printers')}</a>
-            <a class="lp-side-link" data-route="label-print-job">${__('Print Jobs')}</a>
-            <a class="lp-side-link" data-route="label-print-log">${__('Print Logs')}</a>
-            <a class="lp-side-link" data-route="label-template-object">${__('Design Objects')}</a>
-            <a class="lp-side-link" data-route="label-designer">${__('Label Designer')}</a>
-        </div>`);
 
     $root.html(`
 <style>
 .lp-designer{display:flex;flex-direction:column;height:calc(100vh - 125px);min-height:620px;gap:8px}
 .lp-toolbar{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.lp-toolbar .lp-status{margin-left:auto;font-size:12px;color:var(--text-muted)}
-.lp-work{display:grid;grid-template-columns:220px minmax(420px,1fr) 300px;gap:8px;flex:1;min-height:0}
+.lp-work{display:grid;grid-template-columns:250px minmax(420px,1fr) 300px;gap:8px;flex:1;min-height:0}
 .lp-panel{border:1px solid var(--border-color);border-radius:6px;background:var(--card-bg);overflow:hidden;min-height:0}.lp-head{padding:8px 10px;border-bottom:1px solid var(--border-color);font-weight:600}.lp-body{padding:8px;overflow:auto;height:calc(100% - 37px)}
 .lp-section{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin:10px 0 5px}.lp-tools{display:grid;grid-template-columns:1fr 1fr;gap:5px}.lp-tools button{white-space:nowrap}
 .lp-canvas-wrap{height:100%;overflow:auto;background:var(--subtle-fg);padding:35px;display:flex;justify-content:center;align-items:flex-start}.lp-canvas{position:relative;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.2);flex:none;touch-action:none}.lp-grid{background-image:linear-gradient(#ddd 1px,transparent 1px),linear-gradient(90deg,#ddd 1px,transparent 1px);background-size:5px 5px}
 .lp-object{position:absolute;box-sizing:border-box;border:1px dashed #888;background:rgba(255,255,255,.86);display:flex;align-items:center;overflow:visible;user-select:none;touch-action:none;cursor:move}.lp-object.selected{border:2px solid var(--primary-color);box-shadow:0 0 0 1px var(--primary-color)}.lp-object.locked{cursor:not-allowed}.lp-handle{position:absolute;width:9px;height:9px;background:var(--primary-color);border:1px solid #fff;border-radius:2px;display:none;z-index:20}.lp-object.selected .lp-handle{display:block}.lp-handle.nw{left:-6px;top:-6px;cursor:nwse-resize}.lp-handle.ne{right:-6px;top:-6px;cursor:nesw-resize}.lp-handle.sw{left:-6px;bottom:-6px;cursor:nesw-resize}.lp-handle.se{right:-6px;bottom:-6px;cursor:nwse-resize}
-.lp-side-link{display:block;padding:8px 7px;margin:2px 0;border-radius:4px;color:var(--text-color);text-decoration:none;cursor:pointer}.lp-side-link:hover{background:var(--control-bg)}
 .lp-field{margin-bottom:7px}.lp-field label{display:block;font-size:11px;color:var(--text-muted);margin-bottom:2px}.lp-field input,.lp-field select{width:100%;padding:5px;border:1px solid var(--border-color);border-radius:4px;background:var(--control-bg)}
 .lp-g2{display:grid;grid-template-columns:1fr 1fr;gap:6px}.lp-layer{padding:6px;border-bottom:1px solid var(--border-color);cursor:pointer;font-size:12px}.lp-layer.selected{background:var(--control-bg);font-weight:600}.lp-muted{font-size:11px;color:var(--text-muted)}
-.lp-field-list{max-height:280px;overflow:auto;border:1px solid var(--border-color);border-radius:4px}.lp-field-row{display:flex;align-items:center;gap:5px;padding:5px;border-bottom:1px solid var(--border-color);font-size:11px}.lp-field-row:last-child{border-bottom:0}.lp-field-row span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lp-field-row button{flex:none}
-@media(max-width:1200px){.lp-work{grid-template-columns:200px minmax(360px,1fr)}.lp-props{grid-column:1/-1;height:280px}}
+.lp-field-search{width:100%;padding:5px 8px;margin-bottom:6px;border:1px solid var(--border-color);border-radius:4px;background:var(--control-bg);font-size:12px}
+.lp-field-list{max-height:280px;overflow:auto;border:1px solid var(--border-color);border-radius:4px}.lp-field-row{display:flex;align-items:center;gap:5px;padding:5px;border-bottom:1px solid var(--border-color);font-size:11px}.lp-field-row:last-child{border-bottom:0}.lp-field-row span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lp-field-row button{flex:none}.lp-field-row.lp-hidden{display:none}
+@media(max-width:1200px){.lp-work{grid-template-columns:220px minmax(360px,1fr)}.lp-props{grid-column:1/-1;height:280px}}
 </style>
 <div class="lp-designer">
   <div class="lp-toolbar">
     <select class="form-control input-sm lp-template" style="width:270px"></select>
     <button class="btn btn-sm btn-primary lp-save">${__('Save')}</button>
-    <button class="btn btn-sm btn-default lp-undo">↶</button><button class="btn btn-sm btn-default lp-redo">↷</button>
-    <button class="btn btn-sm btn-default lp-copy">${__('Copy')}</button><button class="btn btn-sm btn-default lp-paste">${__('Paste')}</button><button class="btn btn-sm btn-default lp-delete">${__('Delete')}</button>
+    <button class="btn btn-sm btn-default lp-undo" title="Ctrl+Z">↶</button><button class="btn btn-sm btn-default lp-redo" title="Ctrl+Y">↷</button>
+    <button class="btn btn-sm btn-default lp-copy" title="Ctrl+C">${__('Copy')}</button><button class="btn btn-sm btn-default lp-paste" title="Ctrl+V">${__('Paste')}</button><button class="btn btn-sm btn-default lp-delete" title="Delete">${__('Delete')}</button>
     <button class="btn btn-sm btn-default lp-grid-btn">${__('Grid')}</button><button class="btn btn-sm btn-default lp-snap">${__('Snap')}</button>
     <button class="btn btn-sm btn-default lp-zoom-out">−</button><span class="lp-zoom">100%</span><button class="btn btn-sm btn-default lp-zoom-in">+</button>
     <button class="btn btn-sm btn-default lp-fit">${__('Fit')}</button>
@@ -105,14 +93,21 @@ frappe.pages['label-designer'].on_page_load = function(wrapper) {
         b.append(`<div class="lp-section">${__('Fields')}</div>`);
         if (!fields.length) b.append(`<div class="lp-muted">${__('No fields available. Select a child DocType in Label Template.')}</div>`);
         else {
+            b.append(`<input type="text" class="lp-field-search" placeholder="${__('Search fields...')}">`);
             const list = $('<div class="lp-field-list"></div>');
             fields.forEach(f => {
-                const row = $('<div class="lp-field-row"></div>');
+                const row = $('<div class="lp-field-row"></div>').attr('data-search', (f.label + ' ' + f.value).toLowerCase());
                 row.append($('<span>').attr('title', field_label(f)).text(field_label(f)));
                 row.append($('<button type="button" class="btn btn-xs btn-default">').text(__('Add')).on('click', () => add_object('Text', f.value)));
                 list.append(row);
             });
             b.append(list);
+            b.find('.lp-field-search').on('input', function () {
+                const q = $(this).val().toLowerCase().trim();
+                list.find('.lp-field-row').each(function () {
+                    $(this).toggleClass('lp-hidden', !!q && $(this).attr('data-search').indexOf(q) === -1);
+                });
+            });
         }
         b.append(`<div class="lp-section">${__('Layers')}</div><div class="lp-layers"></div>`);
     }
@@ -199,19 +194,47 @@ frappe.pages['label-designer'].on_page_load = function(wrapper) {
 
     $r.on('pointerdown', '.lp-canvas', function(e){ if(e.target===canvas[0]){selected=-1;render();} });
     $r.on('click','.lp-add-object',function(){add_object($(this).attr('data-type'));});
-    $r.on('click','.lp-side-link',function(e){e.preventDefault();const route=$(this).attr('data-route'); if(route==='label-designer') frappe.set_route('label-designer'); else frappe.set_route('List',route==='label-template'?'Label Template':route==='manage-printer'?'Manage Printer':route==='label-print-job'?'Label Print Job':route==='label-print-log'?'Label Print Log':'Label Template Object');});
     $r.find('.lp-template').on('change',function(){template_name=$(this).val();frappe.set_route('label-designer',template_name);load_template();});
-    $r.find('.lp-save').on('click',function(){ if(!doc)return; const data=clone(doc); api('frappe.client.save',{doc:data}).then(saved=>{doc=saved;template_name=doc.name;set_status(__('Saved'));$r.find('.lp-template').val(template_name);frappe.set_route('label-designer',template_name);}).catch(()=>frappe.msgprint(__('Unable to save the label template.'))); });
-    $r.find('.lp-delete').on('click',function(){if(selected<0)return;push_history();doc.objects.splice(selected,1);selected=-1;render();});
-    $r.find('.lp-copy').on('click',function(){if(selected>=0)clipboard=clone(doc.objects[selected]);});
-    $r.find('.lp-paste').on('click',function(){if(!clipboard)return;push_history();const n=clone(clipboard);n.x_mm=flt(n.x_mm)+2;n.y_mm=flt(n.y_mm)+2;n.z_index=doc.objects.length+1;doc.objects.push(n);selected=doc.objects.length-1;render();});
-    $r.find('.lp-undo').on('click',function(){if(!history.length)return;future.push(snapshot());const s=history.pop();doc.objects=JSON.parse(s);selected=Math.min(selected,doc.objects.length-1);render();});
-    $r.find('.lp-redo').on('click',function(){if(!future.length)return;history.push(snapshot());const s=future.pop();doc.objects=JSON.parse(s);selected=Math.min(selected,doc.objects.length-1);render();});
+    $r.find('.lp-save').on('click', do_save);
+    $r.find('.lp-delete').on('click', do_delete);
+    $r.find('.lp-copy').on('click', do_copy);
+    $r.find('.lp-paste').on('click', do_paste);
+    $r.find('.lp-undo').on('click', do_undo);
+    $r.find('.lp-redo').on('click', do_redo);
     $r.find('.lp-grid-btn').on('click',function(){grid=!grid;render();});
     $r.find('.lp-snap').on('click',function(){snap=!snap;$(this).toggleClass('btn-primary',snap);});
     $r.find('.lp-zoom-in').on('click',function(){zoom=Math.min(3,zoom+.1);render();$r.find('.lp-zoom').text(Math.round(zoom*100)+'%');});
     $r.find('.lp-zoom-out').on('click',function(){zoom=Math.max(.5,zoom-.1);render();$r.find('.lp-zoom').text(Math.round(zoom*100)+'%');});
     $r.find('.lp-fit').on('click',function(){zoom=1;render();$r.find('.lp-zoom').text('100%');});
+
+    function do_save(){ if(!doc)return; const data=clone(doc); api('frappe.client.save',{doc:data}).then(saved=>{doc=saved;template_name=doc.name;set_status(__('Saved'));$r.find('.lp-template').val(template_name);frappe.set_route('label-designer',template_name);}).catch(()=>frappe.msgprint(__('Unable to save the label template.'))); }
+    function do_delete(){ if(selected<0)return;push_history();doc.objects.splice(selected,1);selected=-1;render(); }
+    function do_copy(){ if(selected>=0)clipboard=clone(doc.objects[selected]); }
+    function do_paste(){ if(!clipboard)return;push_history();const n=clone(clipboard);n.x_mm=flt(n.x_mm)+2;n.y_mm=flt(n.y_mm)+2;n.z_index=doc.objects.length+1;doc.objects.push(n);selected=doc.objects.length-1;render(); }
+    function do_undo(){ if(!history.length)return;future.push(snapshot());const s=history.pop();doc.objects=JSON.parse(s);selected=Math.min(selected,doc.objects.length-1);render(); }
+    function do_redo(){ if(!future.length)return;history.push(snapshot());const s=future.pop();doc.objects=JSON.parse(s);selected=Math.min(selected,doc.objects.length-1);render(); }
+
+    // Standard OS-style keyboard shortcuts. Skipped while typing in an input/
+    // textarea/select (including the field search box and property panel
+    // fields) so native text editing (e.g. browser undo inside a text field)
+    // is never hijacked.
+    $(document).off('keydown.label_printing_designer').on('keydown.label_printing_designer', function(e){
+        if (!doc) return;
+        const tag = (e.target.tagName || '').toLowerCase();
+        const typing = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable;
+        const meta = e.ctrlKey || e.metaKey;
+        if (typing) {
+            if (e.key === 'Escape') e.target.blur();
+            return;
+        }
+        if (meta && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); do_undo(); }
+        else if (meta && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); do_redo(); }
+        else if (meta && e.key.toLowerCase() === 'c') { e.preventDefault(); do_copy(); }
+        else if (meta && e.key.toLowerCase() === 'v') { e.preventDefault(); do_paste(); }
+        else if (meta && e.key.toLowerCase() === 's') { e.preventDefault(); do_save(); }
+        else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); do_delete(); }
+        else if (e.key === 'Escape') { selected = -1; render(); }
+    });
 
     load_templates().catch(err=>{console.error(err);set_status(__('Unable to load Label Templates'));});
 };

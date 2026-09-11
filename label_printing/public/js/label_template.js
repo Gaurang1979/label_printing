@@ -1,11 +1,14 @@
 frappe.ui.form.on('Label Template', {
     setup(frm) {
         label_printing.ensure_template_styles();
-        frm.set_query('source_child_doctype', () => ({filters: {name: ['in', frm.__label_child_doctypes || []]}}));
+        frm.set_query('source_doctype', () => ({filters: {istable: 0, issingle: 0}}));
+        frm.set_query('source_child_doctype', () => ({
+            query: 'label_printing.api.child_doctype_query',
+            filters: {parent_doctype: frm.doc.source_doctype},
+        }));
     },
     refresh(frm) {
         label_printing.setup_designer_tab(frm);
-        label_printing.refresh_child_doctype(frm);
         if (!frm.is_new()) {
             frm.add_custom_button(__('Open Designer'), () => frappe.set_route('label-designer', frm.doc.name), __('Design'));
             frm.add_custom_button(__('Validate Layout'), () => label_printing.validate_layout(frm), __('Design'));
@@ -14,18 +17,14 @@ frappe.ui.form.on('Label Template', {
     source_doctype(frm) {
         frm.set_value('source_child_doctype', '');
         frm.set_value('source_child_table', '');
-        frm.__label_child_doctypes = [];
-        frm.set_query('source_child_doctype', () => ({filters: {name: ['in', frm.__label_child_doctypes || []]}}));
         if (!frm.doc.source_doctype) return;
+        // Convenience only: auto-fill when there is exactly one child table.
+        // The dropdown itself is always filtered server-side (see setup above).
         frappe.call({
             method: 'label_printing.api.get_child_doctypes',
             args: {parent_doctype: frm.doc.source_doctype},
             callback(r) {
                 const rows = r.message || [];
-                frm.__label_child_doctypes = rows.map(x => x.value);
-                frm.__label_child_rows = rows;
-                frm.set_query('source_child_doctype', () => ({filters: {name: ['in', frm.__label_child_doctypes]}}));
-                frm.refresh_field('source_child_doctype');
                 if (rows.length === 1) {
                     frm.set_value('source_child_doctype', rows[0].value);
                     frm.set_value('source_child_table', rows[0].fieldname);
@@ -34,8 +33,15 @@ frappe.ui.form.on('Label Template', {
         });
     },
     source_child_doctype(frm) {
-        const row = (frm.__label_child_rows || []).find(x => x.value === frm.doc.source_child_doctype);
-        frm.set_value('source_child_table', row ? row.fieldname : '');
+        if (!frm.doc.source_child_doctype) { frm.set_value('source_child_table', ''); return; }
+        frappe.call({
+            method: 'label_printing.api.get_child_doctypes',
+            args: {parent_doctype: frm.doc.source_doctype},
+            callback(r) {
+                const row = (r.message || []).find(x => x.value === frm.doc.source_child_doctype);
+                frm.set_value('source_child_table', row ? row.fieldname : '');
+            }
+        });
     },
     printer(frm) { label_printing.validate_printer_width(frm); },
     label_width_mm(frm) { label_printing.validate_printer_width(frm); label_printing.refresh_designer_if_ready(frm); },
@@ -51,29 +57,6 @@ label_printing.ensure_template_styles = function() {
         .lp-designer-message{padding:24px;text-align:center;border:1px dashed var(--border-color);border-radius:6px;color:var(--text-muted);background:var(--subtle-fg)}
     `;
     document.head.appendChild(style);
-};
-
-label_printing.refresh_child_doctype = function(frm) {
-    frm.__label_child_doctypes = [];
-    if (!frm.doc.source_doctype) {
-        frm.set_query('source_child_doctype', () => ({filters: {name: ['in', []]}}));
-        return;
-    }
-    frappe.call({
-        method: 'label_printing.api.get_child_doctypes',
-        args: {parent_doctype: frm.doc.source_doctype},
-        callback(r) {
-            const rows = r.message || [];
-            frm.__label_child_doctypes = rows.map(x => x.value);
-            frm.__label_child_rows = rows;
-            frm.set_query('source_child_doctype', () => ({filters: {name: ['in', frm.__label_child_doctypes]}}));
-            frm.refresh_field('source_child_doctype');
-            if (frm.doc.source_child_doctype && !frm.__label_child_doctypes.includes(frm.doc.source_child_doctype)) {
-                frm.set_value('source_child_doctype', '');
-                frm.set_value('source_child_table', '');
-            }
-        }
-    });
 };
 
 label_printing.setup_designer_tab = function(frm) {

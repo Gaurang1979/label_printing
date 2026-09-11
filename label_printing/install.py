@@ -8,6 +8,23 @@ def after_install():
     frappe.db.commit()
 
 
+def remove_standalone_workspace():
+    """Label Printing must never appear as its own workspace/dashboard --
+    only as shortcuts inside the standard 'Printing' workspace (see
+    ensure_printing_workspace_shortcuts). Frappe can auto-create a default
+    workspace for a module; if one exists here, delete it. Runs on every
+    migrate so it stays gone even if something recreates it later."""
+    names = set(frappe.get_all('Workspace', filters={'module': 'Label Printing'}, pluck='name'))
+    if frappe.db.exists('Workspace', 'Label Printing'):
+        names.add('Label Printing')
+    for name in names:
+        try:
+            frappe.delete_doc('Workspace', name, ignore_permissions=True, force=True)
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), 'Label Printing: could not remove standalone workspace')
+    frappe.db.commit()
+
+
 def ensure_printing_workspace_shortcuts():
     """Keep Label Printing shortcuts present in ERPNext's standard 'Printing'
     workspace, without touching any of label_printing's own code/doctypes

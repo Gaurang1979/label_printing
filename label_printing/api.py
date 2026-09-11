@@ -34,20 +34,22 @@ def get_printer(printer):
 
 @frappe.whitelist()
 def get_doctype_fields(doctype=None, child_doctype=None):
-    """Return the selectable fields for a DocType. Accepts either `doctype`
-    or `child_doctype` so both the Label Template form and the Label
-    Designer page (which historically used different argument names) work
-    against the same endpoint.
+    """Return the selectable fields for a DocType, alphabetically by label.
+    Accepts either `doctype` or `child_doctype` so both the Label Template
+    form and the Label Designer page (which historically used different
+    argument names) work against the same endpoint.
     """
     doctype = doctype or child_doctype
     if not doctype:
         return []
     meta = frappe.get_meta(doctype)
-    return [
+    fields = [
         {'value': f.fieldname, 'fieldname': f.fieldname, 'label': f.label or f.fieldname, 'fieldtype': f.fieldtype}
         for f in meta.fields
         if f.fieldname and f.fieldtype not in {'Section Break', 'Column Break', 'Tab Break', 'HTML'}
     ]
+    fields.sort(key=lambda f: (f['label'] or '').lower())
+    return fields
 
 
 @frappe.whitelist()
@@ -70,7 +72,24 @@ def get_child_doctypes(parent_doctype):
                     'child_doctype': field.options,
                     'display': f'{field.label or field.fieldname} ({field.options})',
                 })
+    result.sort(key=lambda r: r['value'].lower())
     return result
+
+
+@frappe.whitelist()
+def child_doctype_query(doctype, txt, searchfield, start, page_len, filters):
+    """Link-field query (standard Frappe get_query contract) for the Label
+    Data / Child DocType field. Filters server-side, evaluated fresh every
+    time the field is searched, straight off the current parent_doctype --
+    so it can never go stale or show doctypes belonging to a previously
+    selected (or no) parent, unlike a client-side pre-fetched list."""
+    filters = frappe.parse_json(filters) if isinstance(filters, str) else (filters or {})
+    parent_doctype = filters.get('parent_doctype')
+    if not parent_doctype:
+        return []
+    rows = get_child_doctypes(parent_doctype)
+    txt = (txt or '').lower()
+    return [(r['value'], r['fieldname']) for r in rows if not txt or txt in r['value'].lower()]
 
 
 @frappe.whitelist()
