@@ -33,13 +33,14 @@ frappe.ui.form.on('Label Template', {
         });
     },
     source_child_doctype(frm) {
-        if (!frm.doc.source_child_doctype) { frm.set_value('source_child_table', ''); return; }
+        if (!frm.doc.source_child_doctype) { frm.set_value('source_child_table', ''); label_printing.refresh_designer_if_ready(frm); return; }
         frappe.call({
             method: 'label_printing.api.get_child_doctypes',
             args: {parent_doctype: frm.doc.source_doctype},
             callback(r) {
                 const row = (r.message || []).find(x => x.value === frm.doc.source_child_doctype);
                 frm.set_value('source_child_table', row ? row.fieldname : '');
+                label_printing.refresh_designer_if_ready(frm);
             }
         });
     },
@@ -53,7 +54,6 @@ label_printing.ensure_template_styles = function() {
     const style = document.createElement('style');
     style.id = 'label-printing-template-styles';
     style.textContent = `
-        .lp-designer-frame{display:block;width:100%;height:calc(100vh - 260px);min-height:780px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-bg)}
         .lp-designer-message{padding:24px;text-align:center;border:1px dashed var(--border-color);border-radius:6px;color:var(--text-muted);background:var(--subtle-fg)}
     `;
     document.head.appendChild(style);
@@ -64,16 +64,30 @@ label_printing.setup_designer_tab = function(frm) {
     if (!field) return;
     if (frm.is_new()) {
         frm.set_df_property('designer_embed', 'options', `<div class="lp-designer-message">${__('Save the Label Template first to open the full designer.')}</div>`);
+        frm.refresh_field('designer_embed');
+        frm.__lp_designer_mounted_for = null;
         return;
     }
-    const base = frappe.urllib.get_base_url ? frappe.urllib.get_base_url() : window.location.origin;
-    const src = `${base}/app/label-designer/${encodeURIComponent(frm.doc.name)}`;
-    frm.set_df_property('designer_embed', 'options', `<iframe class="lp-designer-frame" src="${src}" title="${__('Label Designer')}" loading="eager"></iframe>`);
-    frm.refresh_field('designer_embed');
+    if (frm.__lp_designer_mounted_for === frm.doc.name && frm.__lp_designer_handle) {
+        return; // already mounted for this document -- don't reset zoom/undo/selection on every refresh
+    }
+    frm.__lp_designer_mounted_for = frm.doc.name;
+    frm.__lp_designer_handle = label_printing.mount_designer(field.$wrapper, {
+        mode: 'embedded',
+        ns: 'label_printing_designer_embed',
+        get_doc: () => frm.doc,
+        get_fields: () => new Promise(resolve => frappe.call({
+            method: 'label_printing.api.get_doctype_fields',
+            args: {doctype: frm.doc.source_child_doctype},
+            callback: r => resolve(r.message || []),
+        })),
+        new_row: (values) => frm.add_child('objects', values),
+        on_dirty: () => { frm.dirty(); frm.refresh_field('objects'); },
+    });
 };
 
 label_printing.refresh_designer_if_ready = function(frm) {
-    if (!frm.is_new() && frm.fields_dict && frm.fields_dict.designer_embed) label_printing.setup_designer_tab(frm);
+    if (frm.__lp_designer_handle) frm.__lp_designer_handle.refresh();
 };
 
 label_printing.validate_printer_width = function(frm) {

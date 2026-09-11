@@ -1,0 +1,13 @@
+{
+  "doctype": "Page",
+  "name": "print-label",
+  "module": "Label Printing",
+  "standard": "Yes",
+  "system_page": 1,
+  "roles": [
+    {"role":"Label Printing User"},
+    {"role":"Label Printing Manager"},
+    {"role":"Label Printing Administrator"},
+    {"role":"System Manager"}
+  ]
+}

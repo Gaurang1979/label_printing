@@ -93,6 +93,41 @@ def child_doctype_query(doctype, txt, searchfield, start, page_len, filters):
 
 
 @frappe.whitelist()
+def get_printable_doctypes():
+    """Distinct DocTypes that currently have at least one Active Label
+    Template, for the Print Label tool's first step (choose what you're
+    printing for)."""
+    return sorted(frappe.db.get_all(
+        "Label Template",
+        filters={"status": "Active"},
+        pluck="source_doctype",
+        distinct=True,
+    ))
+
+
+@frappe.whitelist()
+def search_documents(doctype, txt=None, limit=20):
+    """Generic, permission-respecting document search for the Print Label
+    tool's document picker (step 3): matches on name and, where the
+    DocType defines one, its title field too."""
+    if not doctype:
+        return []
+    meta = frappe.get_meta(doctype)
+    title_field = meta.title_field if meta.title_field and meta.title_field != 'name' else None
+    or_filters = []
+    if txt:
+        or_filters.append(['name', 'like', f'%{txt}%'])
+        if title_field:
+            or_filters.append([title_field, 'like', f'%{txt}%'])
+    fields = ['name'] + ([title_field] if title_field else [])
+    rows = frappe.get_list(
+        doctype, or_filters=or_filters or None, fields=fields,
+        limit_page_length=frappe.utils.cint(limit) or 20, order_by='modified desc',
+    )
+    return [{'name': r.name, 'title': r.get(title_field) if title_field else None} for r in rows]
+
+
+@frappe.whitelist()
 def get_print_buttons(doctype):
     """Active Label Templates registered against this DocType, alphabetically
     by template name. Drives the generic 'Labels' button group on every
