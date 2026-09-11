@@ -113,6 +113,25 @@ def _refresh_job_status(job_doc):
 
 
 @frappe.whitelist()
+def find_open_job(source_doctype, source_name, template):
+    """An existing not-yet-completed Print Job for this exact document +
+    template, if any, so the UI can offer to resume it instead of creating
+    a duplicate job that would reprint already-completed labels."""
+    return frappe.db.get_value(
+        'Label Print Job',
+        {
+            'source_doctype': source_doctype,
+            'source_name': source_name,
+            'template': template,
+            'docstatus': 1,
+            'status': ['in', ['Queued', 'Printing', 'Paused']],
+        },
+        'name',
+        order_by='creation desc',
+    )
+
+
+@frappe.whitelist()
 def find_reprint_source(serial_no):
     rows=frappe.db.sql('''select source_doctype, source_name, template, template_version, printer from `tabLabel Print Log` where serial_no=%s order by printed_on desc limit 1''',serial_no,as_dict=True)
     return rows[0] if rows else None

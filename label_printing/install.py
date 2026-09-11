@@ -8,19 +8,30 @@ def after_install():
     frappe.db.commit()
 
 
-def remove_printing_workspace_shortcuts():
-    """Remove Label Printing shortcuts that were previously added to the global Printing workspace."""
+def ensure_printing_workspace_shortcuts():
+    """Keep Label Printing shortcuts present in ERPNext's standard 'Printing'
+    workspace, without touching any of label_printing's own code/doctypes
+    (those stay in this app, safe from ERPNext updates). Runs on every
+    migrate -- including future ERPNext version upgrades -- so if an update
+    ever resets the workspace, the next bench migrate puts these back."""
     if not frappe.db.exists('Workspace', 'Printing'):
         return
-    workspace = frappe.get_doc('Workspace', 'Printing')
-    remove = {
-        'Label Template', 'Label Template Object', 'Manage Printer',
-        'Label Print Job', 'Label Print Job Item', 'Label Print Log'
-    }
-    changed = False
-    for row in list(workspace.shortcuts):
-        if row.link_to in remove:
-            workspace.remove(row)
-            changed = True
-    if changed:
-        workspace.save(ignore_permissions=True)
+    try:
+        workspace = frappe.get_doc('Workspace', 'Printing')
+        existing = {row.link_to for row in workspace.shortcuts}
+        wanted = [
+            {'label': 'Label Templates', 'link_to': 'Label Template', 'type': 'DocType', 'doc_view': 'List', 'color': 'Blue'},
+            {'label': 'Printers', 'link_to': 'Manage Printer', 'type': 'DocType', 'doc_view': 'List', 'color': 'Green'},
+            {'label': 'Print Jobs', 'link_to': 'Label Print Job', 'type': 'DocType', 'doc_view': 'List', 'color': 'Orange'},
+            {'label': 'Print Logs', 'link_to': 'Label Print Log', 'type': 'DocType', 'doc_view': 'List', 'color': 'Grey'},
+        ]
+        changed = False
+        for shortcut in wanted:
+            if shortcut['link_to'] not in existing:
+                workspace.append('shortcuts', shortcut)
+                changed = True
+        if changed:
+            workspace.save(ignore_permissions=True)
+            frappe.db.commit()
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), 'Label Printing: could not update Printing workspace shortcuts')

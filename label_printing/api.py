@@ -75,18 +75,18 @@ def get_child_doctypes(parent_doctype):
 
 @frappe.whitelist()
 def get_print_buttons(doctype):
-    """Active Label Templates registered against this DocType, in button
-    order. Drives the generic 'Labels' button group on every form — a
-    DocType can have any number of active templates (e.g. one button for
-    a shipping label, another for a serial-number label), each named by
-    its own Print Button Label."""
+    """Active Label Templates registered against this DocType, alphabetically
+    by template name. Drives the generic 'Labels' button group on every
+    form -- a DocType can have any number of active templates (e.g. one
+    button for a shipping label, another for a serial-number label), each
+    named by its own Print Button Label."""
     if not doctype:
         return []
     return frappe.db.get_all(
         "Label Template",
         filters={"source_doctype": doctype, "status": "Active"},
-        fields=["name", "print_button_label", "source_child_doctype", "source_child_table", "printer", "button_order"],
-        order_by="button_order asc, template_name asc",
+        fields=["name", "print_button_label", "source_child_doctype", "source_child_table", "printer"],
+        order_by="template_name asc",
     )
 
 
