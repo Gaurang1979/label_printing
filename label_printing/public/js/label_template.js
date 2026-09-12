@@ -67,8 +67,8 @@ label_printing.setup_designer_tab = function(frm) {
         frm.__lp_designer_mounted_for = null;
         return;
     }
-    if (frm.__lp_designer_mounted_for === frm.doc.name && frm.__lp_designer_handle) {
-        return; // already mounted for this document -- don't reset zoom/undo/selection on every refresh
+    if (frm.__lp_designer_mounted_for === frm.doc.name && frm.__lp_designer_handle && field.$wrapper.find('.lp-designer').length) {
+        return; // already mounted for this document, and still actually there -- don't reset zoom/undo/selection on every refresh
     }
     frm.__lp_designer_mounted_for = frm.doc.name;
     try {

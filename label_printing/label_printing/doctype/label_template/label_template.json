@@ -5,8 +5,9 @@
   "custom":1,
   "autoname":"field:template_name",
   "title_field":"template_name",
-  "field_order":["template_name","print_button_label","source_doctype","source_child_doctype","source_child_table","column_top_2","printer","version","status","section_label","label_width_mm","label_height_mm","number_of_ups","label_pitch_mm","horizontal_gap_mm","vertical_gap_mm","column_label_2","media_type","print_method","orientation","margin_left_mm","margin_right_mm","margin_top_mm","margin_bottom_mm","column_media_2","notes","design_tab","designer_embed","section_objects","objects"],
+  "field_order":["details_tab","template_name","print_button_label","source_doctype","source_child_doctype","source_child_table","column_top_2","printer","version","status","section_label","label_width_mm","label_height_mm","number_of_ups","label_pitch_mm","horizontal_gap_mm","vertical_gap_mm","column_label_2","media_type","print_method","orientation","margin_left_mm","margin_right_mm","margin_top_mm","margin_bottom_mm","column_media_2","notes","design_tab","designer_embed","section_objects","objects"],
   "fields":[
+    {"fieldname":"details_tab","label":"Label Template","fieldtype":"Tab Break"},
     {"fieldname":"template_name","label":"Template Name","fieldtype":"Data","reqd":1,"unique":1,"in_list_view":1},
     {"fieldname":"print_button_label","label":"Print Button Label","fieldtype":"Data","in_list_view":1,"mandatory_depends_on":"eval:doc.status=='Active'","description":"Text shown on the Print Label button for this DocType, e.g. \"Print Shipping Label\" or \"Print Serial Number Label\". Required before the template can be set Active."},
     {"fieldname":"source_doctype","label":"Parent ERPNext DocType","fieldtype":"Link","options":"DocType","reqd":1,"in_list_view":1},

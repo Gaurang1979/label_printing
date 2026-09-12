@@ -8,6 +8,22 @@ def after_install():
     frappe.db.commit()
 
 
+def remove_orphaned_designer_page():
+    """The standalone Label Designer page was merged into the Label
+    Template form's own Design tab, and its files were deleted -- but
+    deleting an app's files does not delete the matching Page record
+    from the database. Without this, 'label-designer' would keep
+    showing up as a leftover entry (e.g. in module/doctype listings)
+    even though the page itself no longer exists. Runs on every migrate,
+    defensively, in case anything ever recreates it."""
+    try:
+        if frappe.db.exists('Page', 'label-designer'):
+            frappe.delete_doc('Page', 'label-designer', ignore_permissions=True, force=True)
+            frappe.db.commit()
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), 'Label Printing: could not remove orphaned label-designer page')
+
+
 def ensure_label_printing_workspace():
     """Ensure a Label Printing workspace record exists, nested under
     Printing (parent_page='Printing') so it's reachable from Printing's
