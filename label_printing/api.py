@@ -77,12 +77,17 @@ def get_child_doctypes(parent_doctype):
 
 
 @frappe.whitelist()
-def child_doctype_query(doctype, txt, searchfield, start, page_len, filters):
+def child_doctype_query(doctype, txt, searchfield, start, page_len, filters, **kwargs):
     """Link-field query (standard Frappe get_query contract) for the Label
     Data / Child DocType field. Filters server-side, evaluated fresh every
     time the field is searched, straight off the current parent_doctype --
     so it can never go stale or show doctypes belonging to a previously
-    selected (or no) parent, unlike a client-side pre-fetched list."""
+    selected (or no) parent, unlike a client-side pre-fetched list.
+
+    **kwargs absorbs the extra as_dict / reference_doctype /
+    ignore_user_permissions keyword arguments Frappe's search_widget
+    always passes to a custom query function -- without this a plain
+    positional signature throws TypeError on every single call."""
     filters = frappe.parse_json(filters) if isinstance(filters, str) else (filters or {})
     parent_doctype = filters.get('parent_doctype')
     if not parent_doctype:
@@ -106,10 +111,12 @@ def get_printable_doctypes():
 
 
 @frappe.whitelist()
-def search_documents(doctype, txt=None, limit=20):
+def search_documents(doctype, txt=None, limit=20, filters=None):
     """Generic, permission-respecting document search for the Print Label
     tool's document picker (step 3): matches on name and, where the
-    DocType defines one, its title field too."""
+    DocType defines one, its title field too. `filters` (list of
+    [fieldname, value] pairs from the Filters tab) narrows the result set
+    further -- e.g. only documents in a given warehouse or branch."""
     if not doctype:
         return []
     meta = frappe.get_meta(doctype)
@@ -119,9 +126,18 @@ def search_documents(doctype, txt=None, limit=20):
         or_filters.append(['name', 'like', f'%{txt}%'])
         if title_field:
             or_filters.append([title_field, 'like', f'%{txt}%'])
+    and_filters = []
+    filters = frappe.parse_json(filters) if isinstance(filters, str) else (filters or [])
+    valid_fieldnames = {f.fieldname for f in meta.fields}
+    for row in filters:
+        if not row or len(row) < 2:
+            continue
+        fieldname, value = row[0], row[1]
+        if fieldname in valid_fieldnames and value not in (None, ''):
+            and_filters.append([fieldname, 'like', f'%{value}%'])
     fields = ['name'] + ([title_field] if title_field else [])
     rows = frappe.get_list(
-        doctype, or_filters=or_filters or None, fields=fields,
+        doctype, filters=and_filters or None, or_filters=or_filters or None, fields=fields,
         limit_page_length=frappe.utils.cint(limit) or 20, order_by='modified desc',
     )
     return [{'name': r.name, 'title': r.get(title_field) if title_field else None} for r in rows]

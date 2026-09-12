@@ -72,18 +72,30 @@ label_printing.setup_designer_tab = function(frm) {
         return; // already mounted for this document -- don't reset zoom/undo/selection on every refresh
     }
     frm.__lp_designer_mounted_for = frm.doc.name;
-    frm.__lp_designer_handle = label_printing.mount_designer(field.$wrapper, {
-        mode: 'embedded',
-        ns: 'label_printing_designer_embed',
-        get_doc: () => frm.doc,
-        get_fields: () => new Promise(resolve => frappe.call({
-            method: 'label_printing.api.get_doctype_fields',
-            args: {doctype: frm.doc.source_child_doctype},
-            callback: r => resolve(r.message || []),
-        })),
-        new_row: (values) => frm.add_child('objects', values),
-        on_dirty: () => { frm.dirty(); frm.refresh_field('objects'); },
-    });
+    try {
+        frm.__lp_designer_handle = label_printing.mount_designer(field.$wrapper, {
+            mode: 'embedded',
+            ns: 'label_printing_designer_embed',
+            get_doc: () => frm.doc,
+            get_fields: () => new Promise(resolve => frappe.call({
+                method: 'label_printing.api.get_doctype_fields',
+                args: {doctype: frm.doc.source_child_doctype},
+                callback: r => resolve(r.message || []),
+            })),
+            new_row: (values) => frm.add_child('objects', values),
+            on_dirty: () => { frm.dirty(); frm.refresh_field('objects'); },
+        });
+        // Frappe's own ControlHTML.refresh_input() unconditionally re-renders
+        // this field from df.options on every subsequent field-refresh cycle
+        // (independent of the guard above), which would otherwise wipe out
+        // the mounted designer and replace it with the stale placeholder
+        // text. Disable it now that we own this field's content.
+        field.refresh_input = function () {};
+    } catch (e) {
+        console.error(e);
+        field.$wrapper.html(`<div class="lp-designer-message" style="color:var(--red-600,#c0392b);text-align:left;white-space:pre-wrap">${__('The designer failed to load.')}\n\n${frappe.utils.escape_html(e && e.stack || e)}</div>`);
+        frm.__lp_designer_mounted_for = null;
+    }
 };
 
 label_printing.refresh_designer_if_ready = function(frm) {

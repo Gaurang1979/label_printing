@@ -57,7 +57,7 @@ label_printing.mount_designer = function ($container, opts) {
 
     const $r = $container, canvas = $r.find('.lp-canvas'), status = $r.find('.lp-status');
     let template_name = opts.template_name || '';
-    let doc = null, fields = [], selected = -1, zoom = 1, grid = true, snap = true;
+    let doc = null, fields = [], selected = -1, zoom = 1, grid = true, snap = true, first_render = true;
     let drag = null, resize = null, history = [], future = [], clipboard = null;
 
     const esc = value => frappe.utils.escape_html(String(value == null ? '' : value));
@@ -90,13 +90,13 @@ label_printing.mount_designer = function ($container, opts) {
             return api('frappe.client.get', {doctype:'Label Template', name:template_name}).then(result => {
                 doc = result;
                 doc.objects = doc.objects || [];
-                selected = -1; history = []; future = [];
+                selected = -1; history = []; future = []; first_render = true;
                 return load_fields().then(() => { render_left(); render(); set_status(doc.source_child_doctype || doc.source_doctype || template_name); });
             });
         }
         doc = opts.get_doc();
         doc.objects = doc.objects || [];
-        selected = -1; history = []; future = [];
+        selected = -1; history = []; future = []; first_render = true;
         return load_fields().then(() => { render_left(); render(); set_status(doc.source_child_doctype || doc.source_doctype || ''); });
     }
 
@@ -157,7 +157,8 @@ label_printing.mount_designer = function ($container, opts) {
 
     function render() {
         if (!doc) return;
-        if (!drag && !resize) mark_dirty();
+        if (!drag && !resize && !first_render) mark_dirty();
+        first_render = false;
         const s = scale(), w = Math.max(150, flt(doc.label_width_mm || 100) * s), h = Math.max(100, flt(doc.label_height_mm || 50) * s);
         canvas.css({width:w + 'px', height:h + 'px'}).toggleClass('lp-grid', grid).empty();
         (doc.objects || []).slice().sort((a,b) => (flt(a.z_index)||0) - (flt(b.z_index)||0)).forEach(o => {

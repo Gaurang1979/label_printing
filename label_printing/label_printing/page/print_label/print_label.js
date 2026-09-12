@@ -30,13 +30,35 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
 .pl-items-table{width:100%;border-collapse:collapse;font-size:12px}
 .pl-items-table th,.pl-items-table td{padding:6px 8px;border-bottom:1px solid var(--border-color);text-align:left}
 .pl-items-table tr.pl-hidden{display:none}
+.pl-item-groups{max-height:420px;overflow:auto;border:1px solid var(--border-color);border-radius:6px}
+.pl-item-group{border-bottom:1px solid var(--border-color)}.pl-item-group:last-child{border-bottom:0}.pl-item-group.pl-hidden{display:none}
+.pl-item-group-head{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--subtle-fg)}
+.pl-item-group-info{flex:1;min-width:0}
+.pl-item-group-title{font-weight:600;font-size:13px}
+.pl-item-group-sub{font-size:11px;color:var(--text-muted)}
+.pl-item-group-serials{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px 10px 34px}
+.pl-serial-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border:1px solid var(--border-color);border-radius:14px;font-size:11px;background:var(--card-bg);cursor:pointer}
 .pl-tag-printed{display:inline-block;padding:1px 6px;border-radius:10px;background:var(--green-100,#e3f6e8);color:var(--green-600,#1c8a3e);font-size:10px}
 .pl-reprint-row{display:flex;align-items:center;gap:8px;margin:10px 0}
 .pl-reprint-row input[type=text]{flex:1;padding:6px 10px;border:1px solid var(--border-color);border-radius:5px;background:var(--control-bg)}
 .pl-actions{display:flex;gap:8px;align-items:center;margin-top:10px}
 .pl-count{font-size:12px;color:var(--text-muted)}
+.pl-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border-color);margin-bottom:4px}
+.pl-tab-btn{padding:8px 14px;border:none;background:none;cursor:pointer;font-size:13px;color:var(--text-muted);border-bottom:2px solid transparent}
+.pl-tab-btn.active{color:var(--text-color);border-bottom-color:var(--primary-color);font-weight:600}
+.pl-tab-body{display:none}.pl-tab-body.active{display:flex;flex-direction:column;gap:14px}
+.pl-filter-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.pl-filter-row select{width:260px;padding:6px 8px;border:1px solid var(--border-color);border-radius:5px;background:var(--control-bg)}
+.pl-filter-row input{flex:1;padding:6px 10px;border:1px solid var(--border-color);border-radius:5px;background:var(--control-bg)}
+.pl-filter-summary{font-size:12px;color:var(--text-muted)}
 </style>
 <div class="pl-wrap">
+  <div class="pl-tabs">
+    <button type="button" class="pl-tab-btn active" data-tab="print">${__('Print')}</button>
+    <button type="button" class="pl-tab-btn" data-tab="filters">${__('Filters')}</button>
+  </div>
+
+  <div class="pl-tab-body active" data-tab-body="print">
   <div class="pl-panel">
     <div class="pl-panel-title">${__('Quick Reprint by Serial / Label Number')}</div>
     <div class="pl-quick">
@@ -48,6 +70,7 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
   <div class="pl-panel">
     <div class="pl-panel-title"><span class="pl-step">1</span>${__('What are you printing for?')}</div>
     <select class="pl-doctype-select"><option value="">${__('Select a DocType...')}</option></select>
+    <div class="pl-filter-summary pl-active-filter-summary"></div>
   </div>
 
   <div class="pl-panel pl-disabled pl-step-2">
@@ -65,13 +88,64 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
   </div>
 
   <div class="pl-panel pl-disabled pl-step-4"></div>
+  </div>
+
+  <div class="pl-tab-body" data-tab-body="filters">
+    <div class="pl-panel">
+      <div class="pl-panel-title">${__('Filter which documents show up in step 3')}</div>
+      <div class="text-muted" style="font-size:12px;margin-bottom:10px">${__('Pick a DocType in step 1 first, then narrow the document search by any of its fields -- e.g. only a specific warehouse or branch.')}</div>
+      <div class="pl-filter-rows"></div>
+      <button type="button" class="btn btn-xs btn-default pl-add-filter">${__('Add Filter')}</button>
+      <div class="pl-actions">
+        <button type="button" class="btn btn-sm btn-primary pl-apply-filters">${__('Apply Filters')}</button>
+        <button type="button" class="btn btn-sm btn-default pl-clear-filters">${__('Clear')}</button>
+      </div>
+    </div>
+  </div>
 </div>`);
 
     const $r = $root;
     const api = (method, args) => new Promise((resolve, reject) => frappe.call({ method, args: args || {}, callback: r => resolve(r.message), error: reject }));
     const esc = v => frappe.utils.escape_html(String(v == null ? '' : v));
 
-    let state = { doctype: null, template: null, templates: [], doc_name: null, doc_title: null, rows: [], printed: new Set() };
+    let state = { doctype: null, template: null, templates: [], doc_name: null, doc_title: null, rows: [], printed: new Set(), filters: [] };
+
+    $r.find('.pl-tab-btn').on('click', function () {
+        const tab = $(this).attr('data-tab');
+        $r.find('.pl-tab-btn').removeClass('active'); $(this).addClass('active');
+        $r.find('.pl-tab-body').removeClass('active');
+        $r.find(`.pl-tab-body[data-tab-body="${tab}"]`).addClass('active');
+        if (tab === 'filters') render_filter_rows();
+    });
+
+    function render_filter_rows() {
+        const $rows = $r.find('.pl-filter-rows').empty();
+        if (!state.doctype) { $rows.append(`<div class="text-muted">${__('Select a DocType in step 1 first.')}</div>`); return; }
+        (state.filters.length ? state.filters : [['', '']]).forEach((f, idx) => {
+            const $row = $(`<div class="pl-filter-row" data-idx="${idx}"><select class="pl-filter-field"><option value="">${__('Select field...')}</option></select><input type="text" class="pl-filter-value" placeholder="${__('Value contains...')}" value="${esc(f[1] || '')}"><button type="button" class="btn btn-xs btn-default pl-remove-filter">${__('Remove')}</button></div>`);
+            api('label_printing.api.get_doctype_fields', { doctype: state.doctype }).then(fields => {
+                const $select = $row.find('.pl-filter-field');
+                (fields || []).forEach(fld => $select.append($('<option>').val(fld.value).text(fld.label + ' (' + fld.value + ')')));
+                $select.val(f[0] || '');
+            });
+            $row.find('.pl-remove-filter').on('click', () => { state.filters.splice(idx, 1); render_filter_rows(); });
+            $rows.append($row);
+        });
+    }
+    $r.find('.pl-add-filter').on('click', () => { state.filters.push(['', '']); render_filter_rows(); });
+    $r.find('.pl-clear-filters').on('click', () => { state.filters = []; render_filter_rows(); update_filter_summary(); });
+    $r.find('.pl-apply-filters').on('click', () => {
+        state.filters = $r.find('.pl-filter-row').map(function () {
+            return [$(this).find('.pl-filter-field').val(), $(this).find('.pl-filter-value').val()];
+        }).get().filter(f => f[0] && f[1]);
+        update_filter_summary();
+        frappe.show_alert({ message: __('Filters applied -- search step 3 again to see them take effect.'), indicator: 'green' });
+    });
+    function update_filter_summary() {
+        const $s = $r.find('.pl-active-filter-summary');
+        if (!state.filters.length) return $s.text('');
+        $s.text(__('Active filters: {0}', [state.filters.map(f => f[0] + ' ~ ' + f[1]).join(', ')]));
+    }
 
     function set_step_enabled(step, enabled) {
         $r.find('.pl-step-' + step).toggleClass('pl-disabled', !enabled);
@@ -91,6 +165,8 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
     }
     $r.find('.pl-doctype-select').on('change', function () {
         state.doctype = $(this).val() || null;
+        state.filters = [];
+        update_filter_summary();
         reset_from_step(2);
         if (!state.doctype) return;
         load_templates();
@@ -126,7 +202,7 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
         set_step_enabled(2, true);
     }
 
-    async function preview_template(t) {
+    async function preview_template(t, row) {
         const tpl = await api('frappe.client.get', { doctype: 'Label Template', name: t.name });
         const pw = flt(tpl.label_width_mm) || 50, ph = flt(tpl.label_height_mm) || 30;
         const scale = Math.max(2, Math.min(6, 420 / Math.max(1, pw)));
@@ -136,7 +212,12 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
         wrap.html(`<div style="display:flex;justify-content:center;padding:16px;background:var(--subtle-fg);border-radius:6px"><div style="position:relative;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.18);width:${pw * scale}px;height:${ph * scale}px"></div></div>`);
         const canvas = wrap.find('div div');
         (tpl.objects || []).forEach(o => {
-            const value = o.fixed_text || (o.fieldname ? '{{ ' + o.fieldname + ' }}' : (o.object_type || 'Object'));
+            let value = o.fixed_text;
+            if (!value && o.fieldname) {
+                const real = row ? row[o.fieldname] : undefined;
+                value = (real === undefined || real === null || real === '') ? '{{ ' + o.fieldname + ' }}' : String(real);
+            }
+            value = value || (o.object_type || 'Object');
             const el = $('<div></div>').css({
                 position: 'absolute', left: flt(o.x_mm) * scale, top: flt(o.y_mm) * scale,
                 width: Math.max(4, flt(o.width_mm || 10) * scale), height: Math.max(4, flt(o.height_mm || 6) * scale),
@@ -146,24 +227,29 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
             }).text(['Line', 'Rectangle'].includes(o.object_type) ? '' : value);
             canvas.append(el);
         });
+        if (row) wrap.append(`<div class="text-muted" style="text-align:center;margin-top:8px;font-size:12px">${__('Showing actual data for {0}', [esc(row.item_code || row.name || '')])}</div>`);
     }
 
     // ---- Step 3: Document -------------------------------------------------
     let doc_search_timer = null;
+    async function run_doc_search() {
+        const txt = $r.find('.pl-doc-input').val();
+        const results = await api('label_printing.api.search_documents', { doctype: state.doctype, txt, filters: state.filters });
+        const $box = $r.find('.pl-doc-results').empty().show();
+        if (!results.length) { $box.append(`<div class="pl-doc-row text-muted">${__('No matches')}</div>`); return; }
+        results.forEach(row => {
+            const label = row.title && row.title !== row.name ? `${esc(row.name)} — ${esc(row.title)}` : esc(row.name);
+            const $row = $(`<div class="pl-doc-row">${label}</div>`);
+            $row.on('click', () => select_document(row.name, row.title));
+            $box.append($row);
+        });
+    }
     $r.find('.pl-doc-input').on('input', function () {
-        const txt = $(this).val();
         clearTimeout(doc_search_timer);
-        doc_search_timer = setTimeout(async () => {
-            const results = await api('label_printing.api.search_documents', { doctype: state.doctype, txt });
-            const $box = $r.find('.pl-doc-results').empty().show();
-            if (!results.length) { $box.append(`<div class="pl-doc-row text-muted">${__('No matches')}</div>`); return; }
-            results.forEach(row => {
-                const label = row.title && row.title !== row.name ? `${esc(row.name)} — ${esc(row.title)}` : esc(row.name);
-                const $row = $(`<div class="pl-doc-row">${label}</div>`);
-                $row.on('click', () => select_document(row.name, row.title));
-                $box.append($row);
-            });
-        }, 250);
+        doc_search_timer = setTimeout(run_doc_search, 250);
+    });
+    $r.find('.pl-doc-input').on('focus', function () {
+        if (state.doctype) run_doc_search();
     });
     $(document).on('click', function (e) {
         if (!$(e.target).closest('.pl-doc-search').length) $r.find('.pl-doc-results').hide();
@@ -196,37 +282,35 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
         $panel.append(`<div class="pl-panel-title"><span class="pl-step">4</span>${__('Select items to print')}</div>`);
         const doc = await api('frappe.client.get', { doctype: state.doctype, name: state.doc_name });
         const rows = doc[state.template.source_child_table] || [];
-        const built = [];
+        const groups = [];
         for (const row of rows) {
             const ids = await label_printing.resolve_row_identities(row);
-            ids.forEach(id => built.push({
-                id, row,
+            if (!ids.length) continue;
+            groups.push({
+                row, ids,
                 item_code: row.item_code || row.item || '',
                 item_name: row.item_name || '',
+                description: row.description || '',
                 warehouse: row.warehouse || row.t_warehouse || row.s_warehouse || row.set_warehouse || '',
                 qty: row.qty !== undefined ? row.qty : '',
-            }));
+                uom: row.uom || row.stock_uom || '',
+            });
         }
-        state.rows = built;
+        state.rows = groups;
 
-        if (!built.length) {
+        if (!groups.length) {
             $panel.append(`<div class="text-muted">${__('No serial numbers / rows found on this document.')}</div>`);
             return;
         }
 
         $panel.append(`
             <div class="pl-items-toolbar">
-                <input type="text" class="pl-item-search" placeholder="${__('Search serial number or item...')}">
+                <input type="text" class="pl-item-search" placeholder="${__('Search item or serial number...')}">
                 <button type="button" class="btn btn-xs btn-default pl-select-all">${__('Select All')}</button>
                 <button type="button" class="btn btn-xs btn-default pl-select-none">${__('Select None')}</button>
                 <span class="pl-count"></span>
             </div>
-            <div style="max-height:340px;overflow:auto;border:1px solid var(--border-color);border-radius:6px">
-            <table class="pl-items-table">
-                <thead><tr><th></th><th>${__('Item Code')}</th><th>${__('Item Name')}</th><th>${__('Warehouse')}</th><th>${__('Serial / Label No')}</th><th></th></tr></thead>
-                <tbody></tbody>
-            </table>
-            </div>
+            <div class="pl-item-groups"></div>
             <div class="pl-reprint-row">
                 <label><input type="checkbox" class="pl-is-reprint"> ${__('This is a reprint (damaged label)')}</label>
                 <input type="text" class="pl-reprint-reason" placeholder="${__('Reason (required for reprint)')}" style="display:none">
@@ -237,27 +321,48 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
             </div>
         `);
 
-        const $tbody = $panel.find('tbody');
-        built.forEach((item, idx) => {
-            const already = state.printed.has(item.id);
-            const $tr = $(`<tr data-idx="${idx}" data-search="${esc((item.id + ' ' + item.item_code + ' ' + item.item_name).toLowerCase())}">
-                <td><input type="checkbox" class="pl-row-check"></td>
-                <td>${esc(item.item_code)}</td>
-                <td>${esc(item.item_name)}</td>
-                <td>${esc(item.warehouse)}</td>
-                <td>${esc(item.id)}</td>
-                <td>${already ? `<span class="pl-tag-printed">${__('printed')}</span>` : ''}</td>
-            </tr>`);
-            $tbody.append($tr);
+        const $groups = $panel.find('.pl-item-groups');
+        groups.forEach((group, gidx) => {
+            const printed_count = group.ids.filter(id => state.printed.has(id)).length;
+            const $group = $(`<div class="pl-item-group" data-gidx="${gidx}" data-search="${esc((group.item_code + ' ' + group.item_name + ' ' + group.ids.join(' ')).toLowerCase())}">
+                <div class="pl-item-group-head">
+                    <label><input type="checkbox" class="pl-group-check"></label>
+                    <div class="pl-item-group-info">
+                        <div class="pl-item-group-title">${esc(group.item_code)}${group.item_name && group.item_name !== group.item_code ? ' — ' + esc(group.item_name) : ''}</div>
+                        <div class="pl-item-group-sub">${group.warehouse ? esc(group.warehouse) + ' · ' : ''}${group.qty !== '' ? __('Qty') + ' ' + esc(group.qty) + (group.uom ? ' ' + esc(group.uom) : '') + ' · ' : ''}${__('{0} serial number(s)', [group.ids.length])}${printed_count ? ' · ' + __('{0} already printed', [printed_count]) : ''}</div>
+                    </div>
+                    <button type="button" class="btn btn-xs btn-default pl-group-preview">${__('Preview')}</button>
+                </div>
+                <div class="pl-item-group-serials"></div>
+            </div>`);
+            const $serials = $group.find('.pl-item-group-serials');
+            group.ids.forEach((id, sidx) => {
+                const already = state.printed.has(id);
+                $serials.append(`<label class="pl-serial-chip"><input type="checkbox" class="pl-serial-check" data-gidx="${gidx}" data-sidx="${sidx}"> ${esc(id)} ${already ? `<span class="pl-tag-printed">${__('printed')}</span>` : ''}</label>`);
+            });
+            $group.find('.pl-group-preview').on('click', (e) => { e.stopPropagation(); preview_template(state.template, group.row); });
+            $group.find('.pl-group-check').on('change', function () {
+                $group.find('.pl-serial-check').prop('checked', $(this).is(':checked'));
+                update_count();
+            });
+            $groups.append($group);
         });
 
-        function update_count() { $panel.find('.pl-count').text(__('{0} selected', [$panel.find('.pl-row-check:checked').length])); }
-        $panel.find('.pl-row-check').on('change', update_count);
-        $panel.find('.pl-select-all').on('click', () => { $panel.find('tr:not(.pl-hidden) .pl-row-check').prop('checked', true); update_count(); });
-        $panel.find('.pl-select-none').on('click', () => { $panel.find('.pl-row-check').prop('checked', false); update_count(); });
+        function all_checkboxes() { return $panel.find('.pl-serial-check'); }
+        function update_count() {
+            all_checkboxes().each(function () {
+                const $box = $(this), group = $box.closest('.pl-item-group');
+                if (!group.find('.pl-serial-check:not(:checked)').length) group.find('.pl-group-check').prop('checked', true);
+                else group.find('.pl-group-check').prop('checked', false);
+            });
+            $panel.find('.pl-count').text(__('{0} selected', [all_checkboxes().filter(':checked').length]));
+        }
+        all_checkboxes().on('change', update_count);
+        $panel.find('.pl-select-all').on('click', () => { $groups.find('.pl-item-group:not(.pl-hidden) .pl-serial-check').prop('checked', true); update_count(); });
+        $panel.find('.pl-select-none').on('click', () => { all_checkboxes().prop('checked', false); update_count(); });
         $panel.find('.pl-item-search').on('input', function () {
             const q = $(this).val().toLowerCase().trim();
-            $tbody.find('tr').each(function () { $(this).toggleClass('pl-hidden', !!q && $(this).attr('data-search').indexOf(q) === -1); });
+            $groups.find('.pl-item-group').each(function () { $(this).toggleClass('pl-hidden', !!q && $(this).attr('data-search').indexOf(q) === -1); });
         });
         $panel.find('.pl-is-reprint').on('change', function () { $panel.find('.pl-reprint-reason').toggle($(this).is(':checked')); });
 
@@ -265,19 +370,16 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
             const reprint = $panel.find('.pl-is-reprint').is(':checked');
             const reason = $panel.find('.pl-reprint-reason').val();
             if (reprint && !reason) return frappe.msgprint(__('Enter a reason for the reprint.'));
-            const selected_idx = $panel.find('.pl-row-check:checked').closest('tr').map(function () { return $(this).attr('data-idx'); }).get();
-            if (!selected_idx.length) return frappe.msgprint(__('Select at least one row.'));
-            const by_row = {};
-            selected_idx.forEach(i => {
-                const item = built[i];
-                (by_row[item.row.idx] = by_row[item.row.idx] || { row: item.row, ids: [] }).ids.push(item.id);
-            });
+            const selected = all_checkboxes().filter(':checked').map(function () { return { gidx: $(this).attr('data-gidx'), sidx: $(this).attr('data-sidx') }; }).get();
+            if (!selected.length) return frappe.msgprint(__('Select at least one serial number.'));
+            const by_group = {};
+            selected.forEach(s => (by_group[s.gidx] = by_group[s.gidx] || []).push(groups[s.gidx].ids[s.sidx]));
             const $btn = $(this).prop('disabled', true);
             const $status = $panel.find('.pl-print-status');
-            for (const key of Object.keys(by_row)) {
-                const group = by_row[key];
-                $status.text(__('Printing...'));
-                await label_printing.print_job(null, group.ids, {
+            for (const gidx of Object.keys(by_group)) {
+                const group = groups[gidx];
+                $status.text(__('Printing {0}...', [group.item_code || group.row.idx]));
+                await label_printing.print_job(null, by_group[gidx], {
                     source_doctype: state.doctype, source_name: state.doc_name, row: group.row,
                     child_table: state.template.source_child_table, template: state.template.name,
                     printer: state.template.printer, reprint, reprint_reason: reason,
