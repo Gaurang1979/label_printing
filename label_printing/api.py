@@ -111,12 +111,44 @@ def get_printable_doctypes():
 
 
 @frappe.whitelist()
+def get_template_filter_fields(template):
+    """Only the fields actually used in this template's design (mapped to
+    an object on the canvas), split by whether each belongs to the parent
+    DocType or its child table -- for the Print tab's filter row, so the
+    filter list is short and relevant instead of every field the DocType
+    has."""
+    if not template:
+        return []
+    tpl = frappe.get_doc('Label Template', template)
+    fieldnames = sorted({o.fieldname for o in tpl.objects if o.fieldname})
+    if not fieldnames:
+        return []
+    result = []
+    parent_meta = frappe.get_meta(tpl.source_doctype)
+    parent_fieldmap = {f.fieldname: f for f in parent_meta.fields}
+    child_fieldmap = {}
+    if tpl.source_child_doctype:
+        child_fieldmap = {f.fieldname: f for f in frappe.get_meta(tpl.source_child_doctype).fields}
+    for fieldname in fieldnames:
+        if fieldname in parent_fieldmap:
+            f = parent_fieldmap[fieldname]
+            result.append({'value': fieldname, 'label': f.label or fieldname, 'scope': 'parent'})
+        elif fieldname in child_fieldmap:
+            f = child_fieldmap[fieldname]
+            result.append({'value': fieldname, 'label': f.label or fieldname, 'scope': 'child', 'child_doctype': tpl.source_child_doctype})
+    return result
+
+
+@frappe.whitelist()
 def search_documents(doctype, txt=None, limit=20, filters=None):
     """Generic, permission-respecting document search for the Print Label
-    tool's document picker (step 3): matches on name and, where the
-    DocType defines one, its title field too. `filters` (list of
-    [fieldname, value] pairs from the Filters tab) narrows the result set
-    further -- e.g. only documents in a given warehouse or branch."""
+    tool's document picker: matches on name and, where the DocType
+    defines one, its title field too. `filters` (list of
+    [fieldname, value, scope, child_doctype] rows from the Print tab's
+    filter row, scope='parent'|'child') narrows the result set further --
+    e.g. only documents with a given warehouse in their item rows, using
+    Frappe's supported child-table filter tuple
+    ["Child DocType", "fieldname", "like", "value"]."""
     if not doctype:
         return []
     meta = frappe.get_meta(doctype)
@@ -128,12 +160,18 @@ def search_documents(doctype, txt=None, limit=20, filters=None):
             or_filters.append([title_field, 'like', f'%{txt}%'])
     and_filters = []
     filters = frappe.parse_json(filters) if isinstance(filters, str) else (filters or [])
-    valid_fieldnames = {f.fieldname for f in meta.fields}
+    valid_parent_fields = {f.fieldname for f in meta.fields}
     for row in filters:
         if not row or len(row) < 2:
             continue
         fieldname, value = row[0], row[1]
-        if fieldname in valid_fieldnames and value not in (None, ''):
+        scope = row[2] if len(row) > 2 else 'parent'
+        child_doctype = row[3] if len(row) > 3 else None
+        if value in (None, ''):
+            continue
+        if scope == 'child' and child_doctype:
+            and_filters.append([child_doctype, fieldname, 'like', f'%{value}%'])
+        elif fieldname in valid_parent_fields:
             and_filters.append([fieldname, 'like', f'%{value}%'])
     fields = ['name'] + ([title_field] if title_field else [])
     rows = frappe.get_list(

@@ -8,7 +8,7 @@
   "field_order":["template_name","print_button_label","source_doctype","source_child_doctype","source_child_table","column_top_2","printer","version","status","section_label","label_width_mm","label_height_mm","number_of_ups","label_pitch_mm","horizontal_gap_mm","vertical_gap_mm","column_label_2","media_type","print_method","orientation","margin_left_mm","margin_right_mm","margin_top_mm","margin_bottom_mm","column_media_2","notes","design_tab","designer_embed","section_objects","objects"],
   "fields":[
     {"fieldname":"template_name","label":"Template Name","fieldtype":"Data","reqd":1,"unique":1,"in_list_view":1},
-    {"fieldname":"print_button_label","label":"Print Button Label","fieldtype":"Data","in_list_view":1,"description":"Text shown on the Print Label button for this DocType, e.g. \"Print Shipping Label\" or \"Print Serial Number Label\". Required to activate the template."},
+    {"fieldname":"print_button_label","label":"Print Button Label","fieldtype":"Data","in_list_view":1,"mandatory_depends_on":"eval:doc.status=='Active'","description":"Text shown on the Print Label button for this DocType, e.g. \"Print Shipping Label\" or \"Print Serial Number Label\". Required before the template can be set Active."},
     {"fieldname":"source_doctype","label":"Parent ERPNext DocType","fieldtype":"Link","options":"DocType","reqd":1,"in_list_view":1},
     {"fieldname":"source_child_doctype","label":"Label Data / Child DocType","fieldtype":"Link","options":"DocType","in_list_view":1,"description":"Leave blank for a document-level label (e.g. one shipping label per document). Set this when the label is generated per row / per serial number in a child table."},
     {"fieldname":"source_child_table","label":"Child Table Fieldname","fieldtype":"Data","read_only":1,"hidden":1},
@@ -35,8 +35,8 @@
     {"fieldname":"notes","label":"Notes","fieldtype":"Small Text"},
     {"fieldname":"design_tab","label":"Label Designer","fieldtype":"Tab Break"},
     {"fieldname":"designer_embed","label":"Designer","fieldtype":"HTML","options":"<div class=\"lp-designer-message\">Save the Label Template first to open the full designer.</div>"},
-    {"fieldname":"section_objects","label":"Design Objects","fieldtype":"Section Break","collapsible":1},
-    {"fieldname":"objects","label":"Objects","fieldtype":"Table","options":"Label Template Object","reqd":0}
+    {"fieldname":"section_objects","label":"Design Objects","fieldtype":"Section Break","collapsible":1,"hidden":1},
+    {"fieldname":"objects","label":"Objects","fieldtype":"Table","options":"Label Template Object","reqd":0,"hidden":1}
   ],
   "permissions":[
     {"role":"Label Printing User","read":1},

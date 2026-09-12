@@ -1,13 +1,9 @@
-// Shared designer engine, mounted either by the standalone "label-designer"
-// page (opts.mode = "standalone": fetches/saves a named Label Template via
-// frappe.client) or directly inside the Label Template form's Design tab
-// (opts.mode = "embedded": reads/writes the live frm.doc in place, no
-// separate fetch/save -- the outer form's own Save persists everything).
+// Shared designer engine, mounted directly inside the Label Template
+// form's Design tab. Reads/writes the live frm.doc in place -- no
+// separate fetch/save, the outer form's own Save persists everything.
 //
-// This exists so the canvas only has to work ONE way, reused by both call
-// sites, instead of an iframe re-loading the whole desk app a second time
-// (unreliable across proxies/CSP/nested-boot timing) or two divergent
-// copies of the same ~250 lines of logic drifting apart.
+// (Previously also powered a standalone "label-designer" page; that page
+// was retired and merged into this tab, so this file is embedded-only now.)
 frappe.provide("label_printing");
 
 label_printing.ensure_designer_styles = function () {
@@ -15,9 +11,8 @@ label_printing.ensure_designer_styles = function () {
     const style = document.createElement('style');
     style.id = 'label-printing-designer-styles';
     style.textContent = `
-.lp-designer{display:flex;flex-direction:column;height:calc(100vh - 125px);min-height:560px;gap:8px}
-.lp-designer.lp-embedded{height:calc(100vh - 300px);min-height:600px}
-.lp-toolbar{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.lp-toolbar .lp-status{margin-left:auto;font-size:12px;color:var(--text-muted)}.lp-toolbar .lp-embed-title{font-size:12px;color:var(--text-muted);margin-right:auto}
+.lp-designer{display:flex;flex-direction:column;height:calc(100vh - 300px);min-height:620px;gap:8px}
+.lp-toolbar{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.lp-toolbar .lp-status{margin-left:auto;font-size:12px;color:var(--text-muted)}
 .lp-work{display:grid;grid-template-columns:250px minmax(420px,1fr) 300px;gap:8px;flex:1;min-height:0}
 .lp-panel{border:1px solid var(--border-color);border-radius:6px;background:var(--card-bg);overflow:hidden;min-height:0}.lp-head{padding:8px 10px;border-bottom:1px solid var(--border-color);font-weight:600}.lp-body{padding:8px;overflow:auto;height:calc(100% - 37px)}
 .lp-section{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin:10px 0 5px}.lp-tools{display:grid;grid-template-columns:1fr 1fr;gap:5px}.lp-tools button{white-space:nowrap}
@@ -34,13 +29,12 @@ label_printing.ensure_designer_styles = function () {
 
 label_printing.mount_designer = function ($container, opts) {
     opts = opts || {};
-    const standalone = opts.mode !== "embedded";
     label_printing.ensure_designer_styles();
 
     $container.html(`
-<div class="lp-designer${standalone ? '' : ' lp-embedded'}">
+<div class="lp-designer">
   <div class="lp-toolbar">
-    ${standalone ? '<select class="form-control input-sm lp-template" style="width:270px"></select><button class="btn btn-sm btn-primary lp-save">' + __('Save') + '</button>' : `<span class="lp-embed-title">${__('Editing this template\'s layout -- use the form\'s Save button above to keep changes.')}</span>`}
+    <span class="lp-embed-title text-muted" style="font-size:12px;margin-right:auto">${__("Use the form's Save button above to keep changes.")}</span>
     <button class="btn btn-sm btn-default lp-undo" title="Ctrl+Z">↶</button><button class="btn btn-sm btn-default lp-redo" title="Ctrl+Y">↷</button>
     <button class="btn btn-sm btn-default lp-copy" title="Ctrl+C">${__('Copy')}</button><button class="btn btn-sm btn-default lp-paste" title="Ctrl+V">${__('Paste')}</button><button class="btn btn-sm btn-default lp-delete" title="Delete">${__('Delete')}</button>
     <button class="btn btn-sm btn-default lp-grid-btn">${__('Grid')}</button><button class="btn btn-sm btn-default lp-snap">${__('Snap')}</button>
@@ -56,44 +50,23 @@ label_printing.mount_designer = function ($container, opts) {
 </div>`);
 
     const $r = $container, canvas = $r.find('.lp-canvas'), status = $r.find('.lp-status');
-    let template_name = opts.template_name || '';
     let doc = null, fields = [], selected = -1, zoom = 1, grid = true, snap = true, first_render = true;
     let drag = null, resize = null, history = [], future = [], clipboard = null;
 
     const esc = value => frappe.utils.escape_html(String(value == null ? '' : value));
     const clone = value => JSON.parse(JSON.stringify(value));
-    const api = (method, args) => new Promise((resolve, reject) => frappe.call({method: method, args: args || {}, callback: r => resolve(r.message), error: reject}));
     const set_status = text => status.text(text || '');
     const snapshot = () => JSON.stringify(doc && doc.objects ? doc.objects : []);
     const push_history = () => { history.push(snapshot()); if (history.length > 50) history.shift(); future = []; };
     const mm = value => Math.round(flt(value) * 10) / 10;
     const snap_value = value => snap ? Math.round(value * 2) / 2 : mm(value);
     const scale = () => Math.max(.65, Math.min(5, 850 / Math.max(1, flt(doc.label_width_mm || 100)))) * zoom;
-    const mark_dirty = () => { if (!standalone && opts.on_dirty) opts.on_dirty(); };
+    const mark_dirty = () => { if (opts.on_dirty) opts.on_dirty(); };
 
     function field_label(field) { return (field.label || field.value) + ' (' + field.value + ')'; }
     function object_label(o) { return o.fixed_text || o.fieldname || o.object_type || __('Object'); }
 
-    function load_templates() {
-        return api('frappe.client.get_list', {doctype:'Label Template', fields:['name','template_name'], order_by:'template_name asc', limit_page_length:500}).then(rows => {
-            const $select = $r.find('.lp-template').empty();
-            (rows || []).forEach(row => $select.append($('<option>').val(row.name).text(row.template_name || row.name)));
-            if (template_name) $select.val(template_name);
-            if (!template_name && rows && rows.length) { template_name = rows[0].name; $select.val(template_name); }
-            return load_template();
-        });
-    }
-
     function load_template() {
-        if (standalone) {
-            if (!template_name) { set_status(__('Create a Label Template first.')); return Promise.resolve(); }
-            return api('frappe.client.get', {doctype:'Label Template', name:template_name}).then(result => {
-                doc = result;
-                doc.objects = doc.objects || [];
-                selected = -1; history = []; future = []; first_render = true;
-                return load_fields().then(() => { render_left(); render(); set_status(doc.source_child_doctype || doc.source_doctype || template_name); });
-            });
-        }
         doc = opts.get_doc();
         doc.objects = doc.objects || [];
         selected = -1; history = []; future = []; first_render = true;
@@ -103,8 +76,7 @@ label_printing.mount_designer = function ($container, opts) {
     function load_fields() {
         fields = [];
         if (!doc || !doc.source_child_doctype) return Promise.resolve();
-        if (opts.get_fields) return opts.get_fields().then(result => { fields = result || []; });
-        return api('label_printing.api.get_doctype_fields', {child_doctype:doc.source_child_doctype}).then(result => { fields = result || []; });
+        return opts.get_fields().then(result => { fields = result || []; });
     }
 
     function render_left() {
@@ -141,18 +113,16 @@ label_printing.mount_designer = function ($container, opts) {
     function default_object(type, fieldname) {
         const count = (doc.objects || []).length;
         const values = {object_type:type, fieldname:fieldname || '', fixed_text:'', barcode_type:'Code 128', barcode_value_mode:'ERPNext Field', font:'0', font_size:28, alignment:'Left', x_mm:2 + (count % 4) * 4, y_mm:2 + Math.floor(count / 4) * 7, width_mm:type === 'Text' ? 35 : 25, height_mm:type === 'Text' ? 7 : 12, rotation:'0', data_matrix_scale:4, image_url:'', image_fit:'Contain', z_index:count + 1};
-        if (opts.new_row) return opts.new_row(values);
-        return Object.assign({doctype:'Label Template Object'}, values);
+        return opts.new_row(values);
     }
 
-    function add_object(type, fieldname) { push_history(); const row = default_object(type, fieldname); if (!opts.new_row) doc.objects.push(row); selected = doc.objects.length - 1; render(); }
+    function add_object(type, fieldname) { push_history(); default_object(type, fieldname); selected = doc.objects.length - 1; render(); }
 
     function clone_object(o) {
         const n = clone(o);
         delete n.name;
         n.x_mm = flt(n.x_mm) + 2; n.y_mm = flt(n.y_mm) + 2; n.z_index = doc.objects.length + 1;
-        if (opts.new_row) return opts.new_row(n);
-        return n;
+        return opts.new_row(n);
     }
 
     function render() {
@@ -198,7 +168,7 @@ label_printing.mount_designer = function ($container, opts) {
         b.append(`<div class="lp-field"><label>${__('Rotation')}</label><select data-p="rotation">${options_html(['0','90','180','270'],String(o.rotation||'0'))}</select></div>`);
         b.append(`<button class="btn btn-xs btn-default lp-duplicate">${__('Duplicate')}</button> <button class="btn btn-xs btn-default lp-lock">${o.locked?__('Unlock'):__('Lock')}</button>`);
         b.find('[data-p]').on('change input',function(){ const p=$(this).attr('data-p'); push_history(); o[p]=$(this).val(); if(['x_mm','y_mm','width_mm','height_mm','font_size','z_index'].includes(p)) o[p]=flt(o[p]); render(); });
-        b.find('.lp-duplicate').on('click',()=>{push_history();const n=clone_object(o);if(!opts.new_row) doc.objects.push(n);selected=doc.objects.length-1;render();});
+        b.find('.lp-duplicate').on('click',()=>{push_history();clone_object(o);selected=doc.objects.length-1;render();});
         b.find('.lp-lock').on('click',()=>{push_history();o.locked=!o.locked;render();});
     }
 
@@ -232,10 +202,6 @@ label_printing.mount_designer = function ($container, opts) {
 
     $r.on('pointerdown', '.lp-canvas', function(e){ if(e.target===canvas[0]){selected=-1;render();} });
     $r.on('click','.lp-add-object',function(){add_object($(this).attr('data-type'));});
-    if (standalone) {
-        $r.find('.lp-template').on('change',function(){template_name=$(this).val();if(opts.on_navigate) opts.on_navigate(template_name);load_template();});
-        $r.find('.lp-save').on('click', do_save);
-    }
     $r.find('.lp-delete').on('click', do_delete);
     $r.find('.lp-copy').on('click', do_copy);
     $r.find('.lp-paste').on('click', do_paste);
@@ -247,10 +213,9 @@ label_printing.mount_designer = function ($container, opts) {
     $r.find('.lp-zoom-out').on('click',function(){zoom=Math.max(.5,zoom-.1);render();$r.find('.lp-zoom').text(Math.round(zoom*100)+'%');});
     $r.find('.lp-fit').on('click',function(){zoom=1;render();$r.find('.lp-zoom').text('100%');});
 
-    function do_save(){ if(!doc)return; const data=clone(doc); api('frappe.client.save',{doc:data}).then(saved=>{doc=saved;template_name=doc.name;set_status(__('Saved'));$r.find('.lp-template').val(template_name);if(opts.on_navigate) opts.on_navigate(template_name);}).catch(()=>frappe.msgprint(__('Unable to save the label template.'))); }
     function do_delete(){ if(selected<0)return;push_history();doc.objects.splice(selected,1);selected=-1;render(); }
     function do_copy(){ if(selected>=0)clipboard=clone(doc.objects[selected]); }
-    function do_paste(){ if(!clipboard)return;push_history();const n=clone_object(clipboard);if(!opts.new_row) doc.objects.push(n);selected=doc.objects.length-1;render(); }
+    function do_paste(){ if(!clipboard)return;push_history();clone_object(clipboard);selected=doc.objects.length-1;render(); }
     function do_undo(){ if(!history.length)return;future.push(snapshot());const s=history.pop();doc.objects=JSON.parse(s);selected=Math.min(selected,doc.objects.length-1);render(); }
     function do_redo(){ if(!future.length)return;history.push(snapshot());const s=future.pop();doc.objects=JSON.parse(s);selected=Math.min(selected,doc.objects.length-1);render(); }
 
@@ -268,13 +233,11 @@ label_printing.mount_designer = function ($container, opts) {
         else if (meta && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); do_redo(); }
         else if (meta && e.key.toLowerCase() === 'c') { e.preventDefault(); do_copy(); }
         else if (meta && e.key.toLowerCase() === 'v') { e.preventDefault(); do_paste(); }
-        else if (standalone && meta && e.key.toLowerCase() === 's') { e.preventDefault(); do_save(); }
         else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); do_delete(); }
         else if (e.key === 'Escape') { selected = -1; render(); }
     });
 
-    const ready = standalone ? load_templates() : load_template();
-    ready.catch(err=>{console.error(err);set_status(__('Unable to load the label template.'));});
+    load_template().catch(err=>{console.error(err);set_status(__('Unable to load the label template.'));});
 
     return {
         refresh: () => load_template(),

@@ -10,7 +10,6 @@ frappe.ui.form.on('Label Template', {
     refresh(frm) {
         label_printing.setup_designer_tab(frm);
         if (!frm.is_new()) {
-            frm.add_custom_button(__('Open Designer'), () => frappe.set_route('label-designer', frm.doc.name), __('Design'));
             frm.add_custom_button(__('Validate Layout'), () => label_printing.validate_layout(frm), __('Design'));
         }
     },
@@ -74,7 +73,6 @@ label_printing.setup_designer_tab = function(frm) {
     frm.__lp_designer_mounted_for = frm.doc.name;
     try {
         frm.__lp_designer_handle = label_printing.mount_designer(field.$wrapper, {
-            mode: 'embedded',
             ns: 'label_printing_designer_embed',
             get_doc: () => frm.doc,
             get_fields: () => new Promise(resolve => frappe.call({
