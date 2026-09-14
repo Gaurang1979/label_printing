@@ -49,25 +49,23 @@ class LabelTemplate(Document):
             if row.fieldname and row.fieldname not in parent_fields and row.fieldname not in child_fields:
                 frappe.throw(f"Object {row.idx}: field '{row.fieldname}' is not available in the selected DocType.")
 
-        if self.status == "Active":
-            if not self.print_button_label:
-                frappe.throw("Enter a Print Button Label before activating this template.")
+        if self.status == "Active" and self.print_button_label:
             clash = frappe.db.get_all(
                 "Label Template",
                 filters={
                     "source_doctype": self.source_doctype,
                     "status": "Active",
-                    "print_button_label": self.print_button_label,
                     "name": ["!=", self.name],
                 },
-                pluck="name",
-                limit=1,
+                fields=["name", "print_button_label", "template_name"],
             )
-            if clash:
-                frappe.throw(
-                    f"Template {clash[0]} for {self.source_doctype} already uses the button label \"{self.print_button_label}\". "
-                    "Multiple active templates are allowed per DocType, but each needs a distinct button label."
-                )
+            for row in clash:
+                effective_label = row.print_button_label or row.template_name
+                if effective_label == self.print_button_label:
+                    frappe.throw(
+                        f"Template {row.name} for {self.source_doctype} already uses the button label \"{self.print_button_label}\". "
+                        "Multiple active templates are allowed per DocType, but each needs a distinct button label."
+                    )
 
     def _bump_version_if_layout_changed(self):
         """Increment Version whenever the physical layout changes, so a Label

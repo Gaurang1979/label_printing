@@ -299,7 +299,45 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
         }
         if (!groups.length) { $panel.append(`<div class="text-muted">${__('No serial numbers / rows found on this document.')}</div>`); return; }
 
+        const template_fields = await api('label_printing.api.get_template_filter_fields', { template: state.template.name });
+
         $panel.append(`
+            <div class="pl-mode-toggle" style="margin-bottom:10px">
+                <button type="button" class="btn btn-xs btn-primary pl-mode-all">${__('All Items')}</button>
+                <button type="button" class="btn btn-xs btn-default pl-mode-one">${__('One Row at a Time')}</button>
+            </div>
+            <div class="pl-mode-body pl-mode-body-all"></div>
+            <div class="pl-mode-body pl-mode-body-one" style="display:none"></div>
+        `);
+        $panel.find('.pl-mode-all').on('click', function () {
+            $panel.find('.pl-mode-all').addClass('btn-primary'); $panel.find('.pl-mode-one').removeClass('btn-primary');
+            $panel.find('.pl-mode-body-all').show(); $panel.find('.pl-mode-body-one').hide();
+        });
+        $panel.find('.pl-mode-one').on('click', function () {
+            $panel.find('.pl-mode-one').addClass('btn-primary'); $panel.find('.pl-mode-all').removeClass('btn-primary');
+            $panel.find('.pl-mode-body-one').show(); $panel.find('.pl-mode-body-all').hide();
+        });
+
+        async function print_groups(group_ids_map, reprint, reason, copies) {
+            copies = Math.max(1, cint(copies) || 1);
+            const $status = $panel.find('.pl-print-status2, .pl-print-status-one');
+            for (const gidx of Object.keys(group_ids_map)) {
+                const group = groups[gidx];
+                for (let c = 0; c < copies; c++) {
+                    $status.text(__('Printing {0}...', [group.item_code || group.row.idx]));
+                    await label_printing.print_job(null, group_ids_map[gidx], {
+                        source_doctype: state.doctype, source_name: state.doc_name, row: group.row,
+                        child_table: state.template.source_child_table, template: state.template.name,
+                        printer: state.template.printer, reprint, reprint_reason: reason,
+                    });
+                }
+            }
+            $status.text(__('Done.'));
+        }
+
+        // ---- Mode: All Items (bulk, grouped, select-all-by-default) --------
+        const $all = $panel.find('.pl-mode-body-all');
+        $all.append(`
             <div class="pl-items-toolbar">
                 <input type="text" class="pl-item-search" placeholder="${__('Search item or serial number...')}">
                 <button type="button" class="btn btn-xs btn-default pl-select-all">${__('Select All')}</button>
@@ -316,23 +354,7 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
                 <span class="pl-print-status2 text-muted"></span>
             </div>
         `);
-
-        async function print_groups(group_ids_map, reprint, reason) {
-            const $status = $panel.find('.pl-print-status2');
-            for (const gidx of Object.keys(group_ids_map)) {
-                const group = groups[gidx];
-                $status.text(__('Printing {0}...', [group.item_code || group.row.idx]));
-                await label_printing.print_job(null, group_ids_map[gidx], {
-                    source_doctype: state.doctype, source_name: state.doc_name, row: group.row,
-                    child_table: state.template.source_child_table, template: state.template.name,
-                    printer: state.template.printer, reprint, reprint_reason: reason,
-                });
-            }
-            $status.text(__('Done.'));
-            await load_step4();
-        }
-
-        const $groups = $panel.find('.pl-item-groups');
+        const $groups = $all.find('.pl-item-groups');
         groups.forEach((group, gidx) => {
             const printed_count = group.ids.filter(id => printed_set.has(id)).length;
             const $group = $(`<div class="pl-item-group" data-gidx="${gidx}" data-search="${esc((group.item_code + ' ' + group.item_name + ' ' + group.ids.join(' ')).toLowerCase())}">
@@ -351,41 +373,101 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
                 const already = printed_set.has(id);
                 $serials.append(`<label class="pl-serial-chip"><input type="checkbox" class="pl-serial-check" data-gidx="${gidx}" data-sidx="${sidx}" checked> ${esc(id)} ${already ? `<span class="pl-tag-printed">${__('printed')}</span>` : ''}</label>`);
             });
-            $group.find('.pl-group-print').on('click', async (e) => { e.stopPropagation(); await print_groups({ [gidx]: group.ids }, false, null); });
+            $group.find('.pl-group-print').on('click', async (e) => { e.stopPropagation(); await print_groups({ [gidx]: group.ids }, false, null, 1); await load_step4(); });
             $group.find('.pl-group-check').on('change', function () { $group.find('.pl-serial-check').prop('checked', $(this).is(':checked')); update_count(); });
             $groups.append($group);
         });
-
-        function all_checkboxes() { return $panel.find('.pl-serial-check'); }
+        function all_checkboxes() { return $all.find('.pl-serial-check'); }
         function update_count() {
             all_checkboxes().each(function () {
                 const group = $(this).closest('.pl-item-group');
                 group.find('.pl-group-check').prop('checked', !group.find('.pl-serial-check:not(:checked)').length);
             });
-            $panel.find('.pl-count').text(__('{0} of {1} selected', [all_checkboxes().filter(':checked').length, all_checkboxes().length]));
+            $all.find('.pl-count').text(__('{0} of {1} selected', [all_checkboxes().filter(':checked').length, all_checkboxes().length]));
         }
         all_checkboxes().on('change', update_count);
-        $panel.find('.pl-select-all').on('click', () => { $groups.find('.pl-item-group:not(.pl-hidden) .pl-serial-check').prop('checked', true); update_count(); });
-        $panel.find('.pl-select-none').on('click', () => { all_checkboxes().prop('checked', false); update_count(); });
-        $panel.find('.pl-item-search').on('input', function () {
+        $all.find('.pl-select-all').on('click', () => { $groups.find('.pl-item-group:not(.pl-hidden) .pl-serial-check').prop('checked', true); update_count(); });
+        $all.find('.pl-select-none').on('click', () => { all_checkboxes().prop('checked', false); update_count(); });
+        $all.find('.pl-item-search').on('input', function () {
             const q = $(this).val().toLowerCase().trim();
             $groups.find('.pl-item-group').each(function () { $(this).toggleClass('pl-hidden', !!q && $(this).attr('data-search').indexOf(q) === -1); });
         });
-        $panel.find('.pl-is-reprint').on('change', function () { $panel.find('.pl-reprint-reason').toggle($(this).is(':checked')); });
-
-        $panel.find('.pl-print-selected').on('click', async function () {
-            const reprint = $panel.find('.pl-is-reprint').is(':checked');
-            const reason = $panel.find('.pl-reprint-reason').val();
+        $all.find('.pl-is-reprint').on('change', function () { $all.find('.pl-reprint-reason').toggle($(this).is(':checked')); });
+        $all.find('.pl-print-selected').on('click', async function () {
+            const reprint = $all.find('.pl-is-reprint').is(':checked');
+            const reason = $all.find('.pl-reprint-reason').val();
             if (reprint && !reason) return frappe.msgprint(__('Enter a reason for the reprint.'));
             const selected = all_checkboxes().filter(':checked').map(function () { return { gidx: $(this).attr('data-gidx'), sidx: $(this).attr('data-sidx') }; }).get();
             if (!selected.length) return frappe.msgprint(__('Select at least one serial number.'));
             const by_group = {};
             selected.forEach(s => (by_group[s.gidx] = by_group[s.gidx] || []).push(groups[s.gidx].ids[s.sidx]));
             $(this).prop('disabled', true);
-            await print_groups(by_group, reprint, reason);
+            await print_groups(by_group, reprint, reason, 1);
             $(this).prop('disabled', false);
+            await load_step4();
         });
         update_count();
+
+        // ---- Mode: One Row at a Time -----------------------------------
+        // Pick a row from the dropdown, see every field the template maps
+        // with its actual value (all pre-selected), set copies, print --
+        // then pick the next row and repeat.
+        const $one = $panel.find('.pl-mode-body-one');
+        $one.append(`
+            <div class="lp-field" style="max-width:360px"><label>${__('Select a row / item')}</label><select class="pl-row-select"><option value="">${__('Choose...')}</option></select></div>
+            <div class="pl-row-detail"></div>
+        `);
+        const $rowSelect = $one.find('.pl-row-select');
+        groups.forEach((group, gidx) => {
+            $rowSelect.append($('<option>').val(gidx).text(`${group.item_code}${group.item_name && group.item_name !== group.item_code ? ' — ' + group.item_name : ''} (${group.ids.length} ${__('serial(s)')})`));
+        });
+        $rowSelect.on('change', function () {
+            const gidx = $(this).val();
+            const $detail = $one.find('.pl-row-detail').empty();
+            if (gidx === '') return;
+            const group = groups[gidx];
+            $detail.append(`<div class="pl-panel-title" style="margin-top:10px">${__('Values for this row')}</div>`);
+            $detail.append(`<div class="pl-item-groups" style="max-height:220px"></div>`);
+            const $vals = $detail.find('.pl-item-groups');
+            template_fields.forEach(f => {
+                const value = f.scope === 'child' ? group.row[f.value] : doc[f.value];
+                $vals.append(`<div class="pl-item-group"><div class="pl-item-group-head" style="background:none"><div class="pl-item-group-info"><div class="pl-item-group-title" style="font-size:12px">${esc(f.label)}</div><div class="pl-item-group-sub">${esc(value === undefined || value === null || value === '' ? '—' : value)}</div></div></div></div>`);
+            });
+            $detail.append(`<div class="pl-panel-title" style="margin-top:10px">${__('Serial numbers')}</div>`);
+            $detail.append(`<div class="pl-item-group-serials" style="padding-left:0"></div>`);
+            const $serials2 = $detail.find('.pl-item-group-serials');
+            group.ids.forEach((id, sidx) => {
+                const already = printed_set.has(id);
+                $serials2.append(`<label class="pl-serial-chip"><input type="checkbox" class="pl-one-serial-check" data-sidx="${sidx}" checked> ${esc(id)} ${already ? `<span class="pl-tag-printed">${__('printed')}</span>` : ''}</label>`);
+            });
+            $detail.append(`
+                <div class="lp-field" style="max-width:160px;margin-top:10px"><label>${__('Number of Copies')}</label><input type="number" class="pl-one-copies" value="1" min="1"></div>
+                <div class="pl-reprint-row">
+                    <label><input type="checkbox" class="pl-one-is-reprint"> ${__('This is a reprint (damaged label)')}</label>
+                    <input type="text" class="pl-one-reprint-reason" placeholder="${__('Reason (required for reprint)')}" style="display:none">
+                </div>
+                <div class="pl-actions">
+                    <button type="button" class="btn btn-sm btn-primary pl-print-one-row">${__('Print This Row')}</button>
+                    <span class="pl-print-status-one text-muted"></span>
+                </div>
+            `);
+            $detail.find('.pl-one-is-reprint').on('change', function () { $detail.find('.pl-one-reprint-reason').toggle($(this).is(':checked')); });
+            $detail.find('.pl-print-one-row').on('click', async function () {
+                const reprint = $detail.find('.pl-one-is-reprint').is(':checked');
+                const reason = $detail.find('.pl-one-reprint-reason').val();
+                if (reprint && !reason) return frappe.msgprint(__('Enter a reason for the reprint.'));
+                const selected_ids = $detail.find('.pl-one-serial-check:checked').map(function () { return group.ids[$(this).attr('data-sidx')]; }).get();
+                if (!selected_ids.length) return frappe.msgprint(__('Select at least one serial number.'));
+                const copies = $detail.find('.pl-one-copies').val();
+                $(this).prop('disabled', true);
+                await print_groups({ [gidx]: selected_ids }, reprint, reason, copies);
+                $(this).prop('disabled', false);
+                // Deliberately do not reload/reset the whole step here -- the
+                // point is to let the user immediately pick the next row from
+                // the same dropdown and repeat, per the described workflow.
+                frappe.show_alert({ message: __('Printed. Pick the next row to continue.'), indicator: 'green' });
+            });
+        });
     }
 
     async function render_document_level($panel) {
@@ -463,17 +545,54 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
         serial_state.serials = serials || [];
         const $list = $r.find('.pl-serial-list').empty();
         if (!serial_state.serials.length) { $list.append(`<div class="text-muted" style="padding:8px">${__('No serial numbers found for this item.')}</div>`); return; }
-        serial_state.serials.forEach((s, idx) => {
+
+        const $previewSlot = $('<div class="pl-card-preview" style="margin-bottom:10px;min-height:70px;max-width:320px"></div>');
+        $list.before($previewSlot);
+        let preview_shown = false;
+
+        // Cap enrichment lookups so a very long serial list doesn't fire
+        // dozens of calls; still shows the full list either way.
+        const enrich_limit = 40;
+        for (let idx = 0; idx < serial_state.serials.length; idx++) {
+            const s = serial_state.serials[idx];
+            let source = null;
+            if (idx < enrich_limit) {
+                try { source = await api('label_printing.print_api.find_reprint_source', { serial_no: s.name }); } catch (e) { source = null; }
+            }
+            s._source = source;
+            if (source && !preview_shown) {
+                preview_shown = true;
+                render_mini_preview($previewSlot, source.template, null);
+            }
             const $row = $(`<div class="pl-item-group" data-idx="${idx}" data-search="${esc(s.name.toLowerCase())}">
                 <div class="pl-item-group-head">
                     <label><input type="checkbox" class="pl-serial-item-check" data-idx="${idx}"></label>
                     <div class="pl-item-group-info">
                         <div class="pl-item-group-title">${esc(s.name)}</div>
-                        <div class="pl-item-group-sub">${s.warehouse ? esc(s.warehouse) + ' · ' : ''}<span class="pl-tag-status">${esc(s.status || '')}</span></div>
+                        <div class="pl-item-group-sub">${s.warehouse ? esc(s.warehouse) + ' · ' : ''}<span class="pl-tag-status">${esc(s.status || '')}</span>${source ? ' · ' + __('has print history') : ''}</div>
                     </div>
+                    <button type="button" class="btn btn-xs btn-default pl-serial-values-toggle" data-idx="${idx}" ${source ? '' : 'disabled'}>${__('Values')}</button>
                 </div>
+                <div class="pl-serial-values" data-idx="${idx}" style="display:none;padding:8px 10px 10px 34px"></div>
             </div>`);
             $list.append($row);
+        }
+        $list.find('.pl-serial-values-toggle').on('click', async function () {
+            const idx = $(this).attr('data-idx');
+            const $box = $list.find(`.pl-serial-values[data-idx="${idx}"]`);
+            if ($box.is(':visible')) { $box.hide(); return; }
+            if (!$box.data('loaded')) {
+                const s = serial_state.serials[idx];
+                const fields = await api('label_printing.api.get_template_filter_fields', { template: s._source.template });
+                const source_doc = await api('frappe.client.get', { doctype: s._source.source_doctype, name: s._source.source_name });
+                fields.forEach(f => {
+                    let value = source_doc[f.value];
+                    if (f.scope === 'child' && Array.isArray(source_doc[f.child_doctype])) { /* best-effort: parent-level lookup only here */ }
+                    $box.append(`<div style="font-size:11px;margin-bottom:2px"><b>${esc(f.label)}:</b> ${esc(value === undefined || value === null || value === '' ? '—' : value)}</div>`);
+                });
+                $box.data('loaded', true);
+            }
+            $box.show();
         });
         update_serial_count();
     }

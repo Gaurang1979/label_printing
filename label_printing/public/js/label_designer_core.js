@@ -1,28 +1,47 @@
 // Shared designer engine, mounted directly inside the Label Template
 // form's Design tab. Reads/writes the live frm.doc in place -- no
 // separate fetch/save, the outer form's own Save persists everything.
-//
-// (Previously also powered a standalone "label-designer" page; that page
-// was retired and merged into this tab, so this file is embedded-only now.)
 frappe.provide("label_printing");
+
+label_printing.OBJECT_PALETTE = [
+    {category: 'Text', types: [{type: 'Text', label: 'Text'}]},
+    {category: 'Barcodes', types: [
+        {type: 'Barcode', label: 'Barcode (1D)'},
+        {type: 'QR Code', label: 'QR Code'},
+        {type: 'DataMatrix', label: 'DataMatrix'},
+        {type: 'PDF417', label: 'PDF417'},
+        {type: 'Aztec', label: 'Aztec'},
+    ]},
+    {category: 'Shapes', types: [{type: 'Line', label: 'Line'}, {type: 'Rectangle', label: 'Rectangle'}]},
+    {category: 'Images', types: [{type: 'Image', label: 'Image'}]},
+];
+
+label_printing.BARCODE_TYPES = ['Code 128','Code 39','Code 93','EAN-8','EAN-13','UPC-A','UPC-E','ITF','Codabar','GS1-128','GS1 DataBar','MSI','Pharmacode'];
 
 label_printing.ensure_designer_styles = function () {
     if (document.getElementById('label-printing-designer-styles')) return;
     const style = document.createElement('style');
     style.id = 'label-printing-designer-styles';
     style.textContent = `
-.lp-designer{display:flex;flex-direction:column;height:calc(100vh - 300px);min-height:620px;gap:8px}
+.lp-designer{display:flex;flex-direction:column;height:calc(100vh - 300px);min-height:640px;gap:8px;position:relative;z-index:1}
 .lp-toolbar{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.lp-toolbar .lp-status{margin-left:auto;font-size:12px;color:var(--text-muted)}
-.lp-work{display:grid;grid-template-columns:250px minmax(420px,1fr) 300px;gap:8px;flex:1;min-height:0}
-.lp-panel{border:1px solid var(--border-color);border-radius:6px;background:var(--card-bg);overflow:hidden;min-height:0}.lp-head{padding:8px 10px;border-bottom:1px solid var(--border-color);font-weight:600}.lp-body{padding:8px;overflow:auto;height:calc(100% - 37px)}
-.lp-section{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin:10px 0 5px}.lp-tools{display:grid;grid-template-columns:1fr 1fr;gap:5px}.lp-tools button{white-space:nowrap}
-.lp-canvas-wrap{height:100%;overflow:auto;background:var(--subtle-fg);padding:35px;display:flex;justify-content:center;align-items:flex-start}.lp-canvas{position:relative;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.2);flex:none;touch-action:none}.lp-grid{background-image:linear-gradient(#ddd 1px,transparent 1px),linear-gradient(90deg,#ddd 1px,transparent 1px);background-size:5px 5px}
+.lp-palette{display:flex;align-items:center;gap:14px;overflow-x:auto;padding:6px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-bg)}
+.lp-palette-group{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.lp-palette-group-label{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-right:2px}
+.lp-work{display:grid;grid-template-columns:210px minmax(360px,1fr) 270px;gap:8px;flex:1;min-height:0;overflow-x:auto}
+.lp-panel{border:1px solid var(--border-color);border-radius:6px;background:var(--card-bg);overflow:hidden;min-height:0;min-width:0}.lp-head{padding:8px 10px;border-bottom:1px solid var(--border-color);font-weight:600}.lp-body{padding:8px;overflow:auto;height:calc(100% - 37px)}
+.lp-canvas-wrap{height:100%;overflow:auto;background:var(--subtle-fg);padding:28px 28px 28px 34px;display:flex;justify-content:center;align-items:flex-start;position:relative}
+.lp-ruler-x{position:absolute;left:34px;top:6px;height:20px;background:var(--card-bg);border:1px solid var(--border-color);border-bottom:none;overflow:hidden}
+.lp-ruler-y{position:absolute;left:6px;top:28px;width:20px;background:var(--card-bg);border:1px solid var(--border-color);border-right:none;overflow:hidden}
+.lp-ruler-tick{position:absolute;font-size:8px;color:var(--text-muted);border-left:1px solid var(--border-color)}
+.lp-ruler-y .lp-ruler-tick{border-left:none;border-top:1px solid var(--border-color);width:100%}
+.lp-canvas-outer{position:relative;margin-left:20px;margin-top:20px}
+.lp-canvas{position:relative;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.2);flex:none;touch-action:none}.lp-grid{background-image:linear-gradient(#ddd 1px,transparent 1px),linear-gradient(90deg,#ddd 1px,transparent 1px);background-size:5px 5px}
+.lp-margin-guide{position:absolute;border:1px dashed rgba(220,50,50,.65);pointer-events:none;z-index:15}
 .lp-object{position:absolute;box-sizing:border-box;border:1px dashed #888;background:rgba(255,255,255,.86);display:flex;align-items:center;overflow:visible;user-select:none;touch-action:none;cursor:move}.lp-object.selected{border:2px solid var(--primary-color);box-shadow:0 0 0 1px var(--primary-color)}.lp-object.locked{cursor:not-allowed}.lp-handle{position:absolute;width:9px;height:9px;background:var(--primary-color);border:1px solid #fff;border-radius:2px;display:none;z-index:20}.lp-object.selected .lp-handle{display:block}.lp-handle.nw{left:-6px;top:-6px;cursor:nwse-resize}.lp-handle.ne{right:-6px;top:-6px;cursor:nesw-resize}.lp-handle.sw{left:-6px;bottom:-6px;cursor:nesw-resize}.lp-handle.se{right:-6px;bottom:-6px;cursor:nwse-resize}
 .lp-field{margin-bottom:7px}.lp-field label{display:block;font-size:11px;color:var(--text-muted);margin-bottom:2px}.lp-field input,.lp-field select{width:100%;padding:5px;border:1px solid var(--border-color);border-radius:4px;background:var(--control-bg)}
-.lp-g2{display:grid;grid-template-columns:1fr 1fr;gap:6px}.lp-layer{padding:6px;border-bottom:1px solid var(--border-color);cursor:pointer;font-size:12px}.lp-layer.selected{background:var(--control-bg);font-weight:600}.lp-muted{font-size:11px;color:var(--text-muted)}
-.lp-field-search{width:100%;padding:5px 8px;margin-bottom:6px;border:1px solid var(--border-color);border-radius:4px;background:var(--control-bg);font-size:12px}
-.lp-field-list{max-height:280px;overflow:auto;border:1px solid var(--border-color);border-radius:4px}.lp-field-row{display:flex;align-items:center;gap:5px;padding:5px;border-bottom:1px solid var(--border-color);font-size:11px}.lp-field-row:last-child{border-bottom:0}.lp-field-row span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lp-field-row button{flex:none}.lp-field-row.lp-hidden{display:none}
-@media(max-width:1200px){.lp-work{grid-template-columns:220px minmax(360px,1fr)}.lp-props{grid-column:1/-1;height:280px}}
+.lp-g2{display:grid;grid-template-columns:1fr 1fr;gap:6px}.lp-layer-row{padding:6px;border-bottom:1px solid var(--border-color);cursor:pointer;font-size:12px}.lp-layer-row.selected{background:var(--control-bg);font-weight:600}.lp-muted{font-size:11px;color:var(--text-muted)}
+@media(max-width:1200px){.lp-work{grid-template-columns:190px minmax(320px,1fr)}.lp-props{grid-column:1/-1;height:300px}}
     `;
     document.head.appendChild(style);
 };
@@ -42,9 +61,13 @@ label_printing.mount_designer = function ($container, opts) {
     <button class="btn btn-sm btn-default lp-fit">${__('Fit')}</button>
     <span class="lp-status"></span>
   </div>
+  <div class="lp-palette"></div>
   <div class="lp-work">
-    <div class="lp-panel"><div class="lp-head">${__('Objects & Fields')}</div><div class="lp-body lp-left"></div></div>
-    <div class="lp-panel"><div class="lp-head">${__('Label Canvas')}</div><div class="lp-canvas-wrap"><div class="lp-canvas lp-grid"></div></div></div>
+    <div class="lp-panel"><div class="lp-head">${__('Objects')}</div><div class="lp-body lp-left"></div></div>
+    <div class="lp-panel"><div class="lp-head">${__('Label Canvas')}</div><div class="lp-canvas-wrap">
+        <div class="lp-ruler-x"></div><div class="lp-ruler-y"></div>
+        <div class="lp-canvas-outer"><div class="lp-canvas lp-grid"></div></div>
+    </div></div>
     <div class="lp-panel lp-props"><div class="lp-head">${__('Properties')}</div><div class="lp-body lp-properties"></div></div>
   </div>
 </div>`);
@@ -65,12 +88,14 @@ label_printing.mount_designer = function ($container, opts) {
 
     function field_label(field) { return (field.label || field.value) + ' (' + field.value + ')'; }
     function object_label(o) { return o.fixed_text || o.fieldname || o.object_type || __('Object'); }
+    function needs_field(o) { return !['Line', 'Rectangle'].includes(o.object_type); }
+    function is_barcode_like(o) { return ['Barcode', 'QR Code', 'DataMatrix', 'PDF417', 'Aztec'].includes(o.object_type); }
 
     function load_template() {
         doc = opts.get_doc();
         doc.objects = doc.objects || [];
         selected = -1; history = []; future = []; first_render = true;
-        return load_fields().then(() => { render_left(); render(); set_status(doc.source_child_doctype || doc.source_doctype || ''); });
+        return load_fields().then(() => { render_palette(); render_left(); render(); set_status(doc.source_child_doctype || doc.source_doctype || ''); });
     }
 
     function load_fields() {
@@ -79,40 +104,40 @@ label_printing.mount_designer = function ($container, opts) {
         return opts.get_fields().then(result => { fields = result || []; });
     }
 
+    // ---- Object palette: single row, grouped by category (#10, #13) -------
+    function render_palette() {
+        const p = $r.find('.lp-palette').empty();
+        label_printing.OBJECT_PALETTE.forEach(group => {
+            const g = $('<div class="lp-palette-group"></div>');
+            g.append(`<span class="lp-palette-group-label">${__(group.category)}</span>`);
+            group.types.forEach(t => {
+                g.append($('<button type="button" class="btn btn-xs btn-default lp-add-object">').text(__(t.label)).attr('data-type', t.type));
+            });
+            p.append(g);
+        });
+    }
+
+    // ---- Left panel: Objects list only -- no separate Fields browser.
+    // Adding a field to an object now happens entirely in Properties
+    // (#8 Layers/Objects were the same list under two names -- consolidated
+    // here as one; #12 fields are picked in Properties after inserting an
+    // object, not from a separate list beforehand).
     function render_left() {
         const b = $r.find('.lp-left').empty();
-        b.append(`<div class="lp-muted">${__('Label Data')}</div>`);
-        b.append(`<div style="font-weight:600;margin:4px 0 8px">${esc(doc && doc.source_child_doctype || __('Select Child DocType in Label Template'))}</div>`);
-        b.append(`<div class="lp-section">${__('Add Object')}</div>`);
-        const types = ['Text','Barcode','QR Code','DataMatrix','PDF417','Aztec','Image','Line','Rectangle'];
-        const tools = $('<div class="lp-tools"></div>');
-        types.forEach(type => tools.append($('<button class="btn btn-xs btn-default">').text('+ ' + __(type)).attr('data-type', type).addClass('lp-add-object')));
-        b.append(tools);
-        b.append(`<div class="lp-section">${__('Fields')}</div>`);
-        if (!fields.length) b.append(`<div class="lp-muted">${__('No fields available. Select a child DocType in Label Template.')}</div>`);
-        else {
-            b.append(`<input type="text" class="lp-field-search" placeholder="${__('Search fields...')}">`);
-            const list = $('<div class="lp-field-list"></div>');
-            fields.forEach(f => {
-                const row = $('<div class="lp-field-row"></div>').attr('data-search', (f.label + ' ' + f.value).toLowerCase());
-                row.append($('<span>').attr('title', field_label(f)).text(field_label(f)));
-                row.append($('<button type="button" class="btn btn-xs btn-default">').text(__('Add')).on('click', () => add_object('Text', f.value)));
-                list.append(row);
-            });
-            b.append(list);
-            b.find('.lp-field-search').on('input', function () {
-                const q = $(this).val().toLowerCase().trim();
-                list.find('.lp-field-row').each(function () {
-                    $(this).toggleClass('lp-hidden', !!q && $(this).attr('data-search').indexOf(q) === -1);
-                });
-            });
+        if (!doc.objects || !doc.objects.length) {
+            b.append(`<div class="lp-muted">${__('Add an object from the palette above, then map it to a field in Properties.')}</div>`);
+            return;
         }
-        b.append(`<div class="lp-section">${__('Layers')}</div><div class="lp-layers"></div>`);
+        (doc.objects || []).slice().reverse().forEach(o => {
+            const i = doc.objects.indexOf(o);
+            b.append($('<div class="lp-layer-row"></div>').toggleClass('selected', i === selected).attr('data-i', i)
+                .text((i + 1) + '. ' + object_label(o)).on('click', () => { selected = i; render(); }));
+        });
     }
 
     function default_object(type, fieldname) {
         const count = (doc.objects || []).length;
-        const values = {object_type:type, fieldname:fieldname || '', fixed_text:'', barcode_type:'Code 128', barcode_value_mode:'ERPNext Field', font:'0', font_size:28, alignment:'Left', x_mm:2 + (count % 4) * 4, y_mm:2 + Math.floor(count / 4) * 7, width_mm:type === 'Text' ? 35 : 25, height_mm:type === 'Text' ? 7 : 12, rotation:'0', data_matrix_scale:4, image_url:'', image_fit:'Contain', z_index:count + 1};
+        const values = {object_type:type, fieldname:fieldname || '', fixed_text:'', barcode_type:'Code 128', barcode_value_mode:'ERPNext Field', font:'0', font_size:28, alignment:'Left', x_mm:2 + (count % 4) * 4, y_mm:2 + Math.floor(count / 4) * 7, width_mm:type === 'Text' ? 35 : 25, height_mm:type === 'Text' ? 7 : 12, rotation:'0', data_matrix_scale:4, image_url:'', image_fit:'Contain', z_index:count + 1, locked:0};
         return opts.new_row(values);
     }
 
@@ -125,51 +150,102 @@ label_printing.mount_designer = function ($container, opts) {
         return opts.new_row(n);
     }
 
-    function render() {
+    // ---- Canvas: grid, margin guides (#4), rulers in mm (#5) ---------------
+    function render_rulers(s, w_mm, h_mm) {
+        const rx = $r.find('.lp-ruler-x').empty().css({width: (w_mm * s) + 'px'});
+        const ry = $r.find('.lp-ruler-y').empty().css({height: (h_mm * s) + 'px'});
+        const step = s > 12 ? 1 : (s > 6 ? 5 : 10);
+        for (let x = 0; x <= w_mm; x += step) {
+            rx.append(`<div class="lp-ruler-tick" style="left:${x * s}px">${x % (step * 2) === 0 ? x : ''}</div>`);
+        }
+        for (let y = 0; y <= h_mm; y += step) {
+            ry.append(`<div class="lp-ruler-tick" style="top:${y * s}px">${y % (step * 2) === 0 ? y : ''}</div>`);
+        }
+    }
+
+    function render_margin_guide(s, w, h) {
+        $r.find('.lp-margin-guide').remove();
+        const ml = flt(doc.margin_left_mm) || 0, mr = flt(doc.margin_right_mm) || 0, mt = flt(doc.margin_top_mm) || 0, mb = flt(doc.margin_bottom_mm) || 0;
+        if (!ml && !mr && !mt && !mb) return;
+        const guide = $('<div class="lp-margin-guide"></div>').css({
+            left: (ml * s) + 'px', top: (mt * s) + 'px',
+            width: Math.max(0, w - (ml + mr) * s) + 'px', height: Math.max(0, h - (mt + mb) * s) + 'px',
+        });
+        canvas.append(guide);
+    }
+
+    function render(skip_properties) {
         if (!doc) return;
         if (!drag && !resize && !first_render) mark_dirty();
         first_render = false;
-        const s = scale(), w = Math.max(150, flt(doc.label_width_mm || 100) * s), h = Math.max(100, flt(doc.label_height_mm || 50) * s);
+        const s = scale(), w_mm = flt(doc.label_width_mm || 100), h_mm = flt(doc.label_height_mm || 50);
+        const w = Math.max(150, w_mm * s), h = Math.max(100, h_mm * s);
         canvas.css({width:w + 'px', height:h + 'px'}).toggleClass('lp-grid', grid).empty();
+        render_rulers(s, w_mm, h_mm);
         (doc.objects || []).slice().sort((a,b) => (flt(a.z_index)||0) - (flt(b.z_index)||0)).forEach(o => {
             const i = doc.objects.indexOf(o), $o = $('<div class="lp-object"></div>').toggleClass('selected', i === selected).toggleClass('locked', !!o.locked);
             $o.css({left:flt(o.x_mm)*s, top:flt(o.y_mm)*s, width:Math.max(8,flt(o.width_mm||20)*s), height:Math.max(8,flt(o.height_mm||6)*s), zIndex:o.z_index || 1, transform:'rotate(' + (o.rotation || 0) + 'deg)'});
             if (o.object_type === 'Rectangle') $o.css({border:'2px solid var(--text-color)',background:'transparent'});
             else if (o.object_type === 'Line') $o.css({background:'var(--text-color)',height:Math.max(1,flt(o.height_mm || 0.3)*s)});
             else if (o.object_type === 'Image') $o.text(o.image_url ? '' : __('Image / Logo'));
-            else if (['Barcode','QR Code','DataMatrix','PDF417','Aztec'].includes(o.object_type)) $o.html('<div style="font-size:10px;text-align:center;width:100%">▦<br>' + esc(o.fieldname || o.fixed_text || 'SAMPLE') + '</div>');
+            else if (is_barcode_like(o)) $o.html('<div style="font-size:10px;text-align:center;width:100%">▦<br>' + esc(o.fieldname || o.fixed_text || 'SAMPLE') + '</div>');
             else $o.text(o.fixed_text || (o.fieldname ? '{{ ' + o.fieldname + ' }}' : __('Text'))).css({fontSize:Math.max(7,flt(o.font_size||28)/3.78*s)+'px',justifyContent:(o.alignment||'Left').toLowerCase()});
             ['nw','ne','sw','se'].forEach(c => $o.append('<span class="lp-handle '+c+'"></span>'));
             $o.on('pointerdown', function(e) { start_pointer(e, i); });
             canvas.append($o);
         });
-        render_layers(); render_properties();
+        render_margin_guide(s, w, h);
+        render_left();
+        if (!skip_properties) render_properties();
     }
 
-    function render_layers() {
-        const b = $r.find('.lp-layers').empty();
-        (doc.objects || []).slice().reverse().forEach(o => { const i=doc.objects.indexOf(o); b.append($('<div class="lp-layer"></div>').toggleClass('selected',i===selected).attr('data-i',i).text((i+1)+'. '+object_label(o)).on('click',()=>{selected=i;render();})); });
-    }
-
+    // ---- Properties: type-specific fields only (#9), layer/order merged in
+    // as a normal field (#11), field mapping lives here (#12) ---------------
     function options_html(list, current) { return list.map(x => '<option value="'+esc(x)+'" '+(x===current?'selected':'')+'>'+esc(x)+'</option>').join(''); }
     function field_options_html(current) { return '<option value="">-- '+__('Fixed Value')+' --</option>' + fields.map(f=>'<option value="'+esc(f.value)+'" '+(f.value===current?'selected':'')+'>'+esc(field_label(f))+'</option>').join(''); }
 
     function render_properties() {
         const b=$r.find('.lp-properties').empty(), o=doc.objects && doc.objects[selected];
-        if(!o){b.html('<div class="lp-muted">'+__('Select an object on the canvas.')+'</div>');return;}
-        b.append(`<div class="lp-field"><label>${__('Object')}</label><select data-p="object_type">${options_html(['Text','Barcode','QR Code','DataMatrix','PDF417','Aztec','Image','Line','Rectangle'],o.object_type)}</select></div>`);
-        b.append(`<div class="lp-field"><label>${__('ERPNext Field')}</label><select data-p="fieldname">${field_options_html(o.fieldname)}</select></div>`);
-        b.append(`<div class="lp-field"><label>${__('Fixed Text / Value')}</label><input data-p="fixed_text" value="${esc(o.fixed_text||'')}"></div>`);
-        if(o.object_type==='Barcode') b.append(`<div class="lp-field"><label>${__('Barcode Type')}</label><select data-p="barcode_type">${options_html(['Code 128','Code 39','Code 93','EAN-8','EAN-13','UPC-A','UPC-E','ITF','Codabar','GS1-128','GS1 DataBar'],o.barcode_type||'Code 128')}</select></div>`);
-        b.append(`<div class="lp-g2"><div class="lp-field"><label>${__('X mm')}</label><input type="number" step="0.1" data-p="x_mm" value="${o.x_mm||0}"></div><div class="lp-field"><label>${__('Y mm')}</label><input type="number" step="0.1" data-p="y_mm" value="${o.y_mm||0}"></div></div>`);
-        b.append(`<div class="lp-g2"><div class="lp-field"><label>${__('Width mm')}</label><input type="number" step="0.1" data-p="width_mm" value="${o.width_mm||20}"></div><div class="lp-field"><label>${__('Height mm')}</label><input type="number" step="0.1" data-p="height_mm" value="${o.height_mm||6}"></div></div>`);
-        b.append(`<div class="lp-g2"><div class="lp-field"><label>${__('Font Size')}</label><input type="number" data-p="font_size" value="${o.font_size||28}"></div><div class="lp-field"><label>${__('Layer')}</label><input type="number" data-p="z_index" value="${o.z_index||1}"></div></div>`);
-        b.append(`<div class="lp-field"><label>${__('Alignment')}</label><select data-p="alignment">${options_html(['Left','Center','Right'],o.alignment||'Left')}</select></div>`);
-        b.append(`<div class="lp-field"><label>${__('Rotation')}</label><select data-p="rotation">${options_html(['0','90','180','270'],String(o.rotation||'0'))}</select></div>`);
+        if(!o){b.html('<div class="lp-muted">'+__('Select an object, or add one from the palette above.')+'</div>');return;}
+        b.append(`<div class="lp-field"><label>${__('Object Type')}</label><select data-p="object_type">${options_html(['Text','Barcode','QR Code','DataMatrix','PDF417','Aztec','Image','Line','Rectangle'],o.object_type)}</select></div>`);
+        if (needs_field(o)) {
+            b.append(`<div class="lp-field"><label>${__('ERPNext Field')}</label><select data-p="fieldname">${field_options_html(o.fieldname)}</select></div>`);
+            b.append(`<div class="lp-field"><label>${__('Fixed Text / Value')}</label><input data-p="fixed_text" data-live="1" value="${esc(o.fixed_text||'')}"></div>`);
+        }
+        if (o.object_type === 'Barcode') b.append(`<div class="lp-field"><label>${__('Barcode Type')}</label><select data-p="barcode_type">${options_html(label_printing.BARCODE_TYPES,o.barcode_type||'Code 128')}</select></div>`);
+        if (['QR Code','DataMatrix','PDF417','Aztec'].includes(o.object_type)) b.append(`<div class="lp-field"><label>${__('Density / Scale')}</label><input type="number" data-p="data_matrix_scale" value="${o.data_matrix_scale||4}"></div>`);
+        if (o.object_type === 'Image') b.append(`<div class="lp-field"><label>${__('Image Fit')}</label><select data-p="image_fit">${options_html(['Contain','Cover','Stretch'],o.image_fit||'Contain')}</select></div>`);
+        b.append(`<div class="lp-g2"><div class="lp-field"><label>${__('X mm')}</label><input type="number" step="0.1" data-p="x_mm" data-live="1" value="${o.x_mm||0}"></div><div class="lp-field"><label>${__('Y mm')}</label><input type="number" step="0.1" data-p="y_mm" data-live="1" value="${o.y_mm||0}"></div></div>`);
+        b.append(`<div class="lp-g2"><div class="lp-field"><label>${__('Width mm')}</label><input type="number" step="0.1" data-p="width_mm" data-live="1" value="${o.width_mm||20}"></div><div class="lp-field"><label>${__('Height mm')}</label><input type="number" step="0.1" data-p="height_mm" data-live="1" value="${o.height_mm||6}"></div></div>`);
+        if (o.object_type === 'Text') b.append(`<div class="lp-g2"><div class="lp-field"><label>${__('Font Size')}</label><input type="number" data-p="font_size" data-live="1" value="${o.font_size||28}"></div><div class="lp-field"><label>${__('Alignment')}</label><select data-p="alignment">${options_html(['Left','Center','Right'],o.alignment||'Left')}</select></div></div>`);
+        b.append(`<div class="lp-g2"><div class="lp-field"><label>${__('Rotation')}</label><select data-p="rotation">${options_html(['0','90','180','270'],String(o.rotation||'0'))}</select></div><div class="lp-field"><label>${__('Layer / Order')}</label><input type="number" data-p="z_index" data-live="1" value="${o.z_index||1}"></div></div>`);
         b.append(`<button class="btn btn-xs btn-default lp-duplicate">${__('Duplicate')}</button> <button class="btn btn-xs btn-default lp-lock">${o.locked?__('Unlock'):__('Lock')}</button>`);
-        b.find('[data-p]').on('change input',function(){ const p=$(this).attr('data-p'); push_history(); o[p]=$(this).val(); if(['x_mm','y_mm','width_mm','height_mm','font_size','z_index'].includes(p)) o[p]=flt(o[p]); render(); });
+
+        // Safari fix (#6): while actively typing/dragging a number spinner,
+        // update the object + redraw the canvas only -- never rebuild this
+        // properties panel itself mid-edit, or the focused input gets torn
+        // down and recreated, which loses cursor position/focus (most
+        // visible in Safari). Only a full render() (which also rebuilds
+        // this panel) happens on 'change' (blur / dropdown pick / Enter),
+        // once the user is done with that field.
+        b.find('[data-p]').on('input', function () {
+            if ($(this).attr('data-live') !== '1') return;
+            const p = $(this).attr('data-p');
+            let v = $(this).val();
+            if (['x_mm','y_mm','width_mm','height_mm','font_size','z_index'].includes(p)) v = flt(v);
+            o[p] = v;
+            render(true); // redraw canvas + objects list, but skip rebuilding properties
+        });
+        b.find('[data-p]').on('change', function () {
+            const p = $(this).attr('data-p');
+            push_history();
+            let v = $(this).val();
+            if (['x_mm','y_mm','width_mm','height_mm','font_size','z_index'].includes(p)) v = flt(v);
+            o[p] = v;
+            render();
+        });
         b.find('.lp-duplicate').on('click',()=>{push_history();clone_object(o);selected=doc.objects.length-1;render();});
-        b.find('.lp-lock').on('click',()=>{push_history();o.locked=!o.locked;render();});
+        b.find('.lp-lock').on('click',()=>{push_history();o.locked=o.locked?0:1;render();});
     }
 
     function start_pointer(e, i) {
@@ -196,7 +272,7 @@ label_printing.mount_designer = function ($container, opts) {
             if(state.corner.indexOf('n')>=0){const ny=snap_value(state.y+dy);h=Math.max(3,state.h-(ny-state.y));y=ny;}
             o.x_mm=Math.max(0,x);o.y_mm=Math.max(0,y);o.width_mm=w;o.height_mm=h;
         }
-        render();
+        render(true); // canvas-only while dragging -- keep properties panel stable, matches the Safari fix above
     });
     $(document).off('pointerup.' + (opts.ns || 'label_printing_designer')).on('pointerup.' + (opts.ns || 'label_printing_designer'), function(){ if(drag||resize){drag=null;resize=null;render();} });
 
