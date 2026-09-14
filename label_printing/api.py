@@ -182,6 +182,36 @@ def search_documents(doctype, txt=None, limit=20, filters=None):
 
 
 @frappe.whitelist()
+def search_items(txt=None, limit=20):
+    """Item search for the Print Label tool's 'By Serial Number' tab --
+    search by item code or item name."""
+    or_filters = []
+    if txt:
+        or_filters = [['item_code', 'like', f'%{txt}%'], ['item_name', 'like', f'%{txt}%']]
+    rows = frappe.get_list(
+        'Item', or_filters=or_filters or None, fields=['item_code', 'item_name'],
+        filters={'has_serial_no': 1}, limit_page_length=frappe.utils.cint(limit) or 20, order_by='modified desc',
+    )
+    return rows
+
+
+@frappe.whitelist()
+def get_serials_for_item(item_code, txt=None, limit=100):
+    """Serial No records for a given item, for the Print Label tool's
+    'By Serial Number' tab -- lets the user find and print/reprint
+    specific serials without first knowing which document they're on."""
+    if not item_code:
+        return []
+    filters = {'item_code': item_code}
+    if txt:
+        filters['name'] = ['like', f'%{txt}%']
+    return frappe.get_list(
+        'Serial No', filters=filters, fields=['name', 'warehouse', 'status'],
+        limit_page_length=frappe.utils.cint(limit) or 100, order_by='modified desc',
+    )
+
+
+@frappe.whitelist()
 def get_print_buttons(doctype):
     """Active Label Templates registered against this DocType, alphabetically
     by template name. Drives the generic 'Labels' button group on every

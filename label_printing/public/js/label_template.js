@@ -61,12 +61,6 @@ label_printing.ensure_template_styles = function() {
 label_printing.setup_designer_tab = function(frm) {
     const field = frm.fields_dict && frm.fields_dict.designer_embed;
     if (!field) return;
-    if (frm.is_new()) {
-        frm.set_df_property('designer_embed', 'options', `<div class="lp-designer-message">${__('Save the Label Template first to open the full designer.')}</div>`);
-        frm.refresh_field('designer_embed');
-        frm.__lp_designer_mounted_for = null;
-        return;
-    }
     if (frm.__lp_designer_mounted_for === frm.doc.name && frm.__lp_designer_handle && field.$wrapper.find('.lp-designer').length) {
         return; // already mounted for this document, and still actually there -- don't reset zoom/undo/selection on every refresh
     }

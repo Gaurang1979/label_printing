@@ -35,7 +35,7 @@
     {"fieldname":"column_media_2","fieldtype":"Column Break"},
     {"fieldname":"notes","label":"Notes","fieldtype":"Small Text"},
     {"fieldname":"design_tab","label":"Label Designer","fieldtype":"Tab Break"},
-    {"fieldname":"designer_embed","label":"Designer","fieldtype":"HTML","options":"<div class=\"lp-designer-message\">Save the Label Template first to open the full designer.</div>"},
+    {"fieldname":"designer_embed","label":"Designer","fieldtype":"HTML","options":"<div class=\"lp-designer-message\">Loading designer...</div>"},
     {"fieldname":"section_objects","label":"Design Objects","fieldtype":"Section Break","collapsible":1,"hidden":1},
     {"fieldname":"objects","label":"Objects","fieldtype":"Table","options":"Label Template Object","reqd":0,"hidden":1}
   ],
