@@ -150,7 +150,7 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
     async function load_doctypes() {
         const doctypes = await api('label_printing.api.get_printable_doctypes');
         const $select = $r.find('.pl-doctype-select');
-        doctypes.forEach(dt => $select.append($('<option>').val(dt).text(dt)));
+        doctypes.forEach(dt => $select.append($('<option>').val(dt).text(__(dt))));
     }
     $r.find('.pl-doctype-select').on('change', function () {
         state.doctype = $(this).val() || null;
