@@ -45,6 +45,9 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
 .pl-reprint-row input[type=text]{flex:1;padding:6px 10px;border:1px solid var(--border-color);border-radius:5px;background:var(--control-bg)}
 .pl-actions{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
 .pl-count{font-size:12px;color:var(--text-muted)}
+.pl-row-error{color:var(--red-600,#c0392b);font-size:11px;margin-top:2px}
+.pl-item-group.pl-row-incomplete{background:rgba(220,50,50,.05)}
+.pl-item-group.pl-row-incomplete .pl-item-group-head{background:rgba(220,50,50,.07)}
 .pl-big-action{padding:10px 22px;font-size:14px}
 .pl-or-divider{font-size:11px;color:var(--text-muted);text-transform:uppercase;margin:4px 0}
 .pl-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border-color);margin-bottom:4px}
@@ -289,17 +292,30 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
     async function render_item_table($panel, printed_set) {
         $panel.append(`<div class="pl-panel-title"><span class="pl-step">4</span>${__('Print labels')}</div>`);
         const doc = await api('frappe.client.get', { doctype: state.doctype, name: state.doc_name });
+        const template_fields = await api('label_printing.api.get_template_filter_fields', { template: state.template.name });
         const rows = doc[state.template.source_child_table] || [];
         const groups = [];
         const unresolved = [];
+
+        // A field mapped on the label but empty on this row/document will
+        // print as a blank on the physical label, so flag it up front rather
+        // than letting the operator discover it after printing.
+        function missing_fields_for(row) {
+            return template_fields.filter(f => {
+                const value = f.scope === 'child' ? row[f.value] : doc[f.value];
+                return value === undefined || value === null || value === '';
+            }).map(f => f.label);
+        }
+
         for (const row of rows) {
             const ids = await label_printing.resolve_row_identities(row, state.doc_name);
             if (!ids.length) {
                 if (label_printing.row_is_serial_tracked(row)) unresolved.push(row.item_code || row.item || ('#' + row.idx));
                 continue;
             }
+            const missing = missing_fields_for(row);
             groups.push({
-                row, ids,
+                row, ids, missing,
                 item_code: row.item_code || row.item || '',
                 item_name: row.item_name || '',
                 warehouse: row.warehouse || row.t_warehouse || row.s_warehouse || row.set_warehouse || '',
@@ -308,11 +324,14 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
             });
         }
         if (unresolved.length) {
-            $panel.append(`<div class="text-muted" style="margin-bottom:8px">${__('Could not read serial numbers for: {0}. Check that the Serial and Batch Bundle on those rows actually contains serial entries.', [esc(unresolved.join(', '))])}</div>`);
+            $panel.append(`<div class="pl-row-error" style="margin-bottom:8px">${__('Could not read serial numbers for: {0}. Check that the Serial and Batch Bundle on those rows actually contains serial entries.', [esc(unresolved.join(', '))])}</div>`);
         }
         if (!groups.length) { $panel.append(`<div class="text-muted">${__('No serial numbers / rows found on this document.')}</div>`); return; }
 
-        const template_fields = await api('label_printing.api.get_template_filter_fields', { template: state.template.name });
+        const incomplete_count = groups.filter(g => g.missing.length).length;
+        if (incomplete_count) {
+            $panel.append(`<div class="pl-row-error" style="margin-bottom:8px">${__('{0} of {1} rows are missing values for fields used in this label. They are listed in red below and are left unselected by default.', [incomplete_count, groups.length])}</div>`);
+        }
 
         $panel.append(`
             <div class="pl-mode-toggle" style="margin-bottom:10px">
@@ -352,7 +371,13 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
         const $all = $panel.find('.pl-mode-body-all');
         $all.append(`
             <div class="pl-items-toolbar">
-                <input type="text" class="pl-item-search" placeholder="${__('Search item or serial number...')}">
+                <input type="text" class="pl-item-search" placeholder="${__('Filter by item, warehouse or serial number...')}">
+                <select class="pl-row-filter" style="padding:7px 10px;border:1px solid var(--border-color);border-radius:5px;background:var(--control-bg)">
+                    <option value="all">${__('All rows')}</option>
+                    <option value="complete">${__('Only rows with all values')}</option>
+                    <option value="incomplete">${__('Only rows missing values')}</option>
+                    <option value="unprinted">${__('Only not-yet-printed')}</option>
+                </select>
                 <button type="button" class="btn btn-xs btn-default pl-select-all">${__('Select All')}</button>
                 <button type="button" class="btn btn-xs btn-default pl-select-none">${__('Select None')}</button>
                 <span class="pl-count"></span>
@@ -370,12 +395,14 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
         const $groups = $all.find('.pl-item-groups');
         groups.forEach((group, gidx) => {
             const printed_count = group.ids.filter(id => printed_set.has(id)).length;
-            const $group = $(`<div class="pl-item-group" data-gidx="${gidx}" data-search="${esc((group.item_code + ' ' + group.item_name + ' ' + group.ids.join(' ')).toLowerCase())}">
+            const has_missing = group.missing.length > 0;
+            const $group = $(`<div class="pl-item-group${has_missing ? ' pl-row-incomplete' : ''}" data-gidx="${gidx}" data-complete="${has_missing ? '0' : '1'}" data-printed="${printed_count ? '1' : '0'}" data-search="${esc((group.item_code + ' ' + group.item_name + ' ' + group.warehouse + ' ' + group.ids.join(' ')).toLowerCase())}">
                 <div class="pl-item-group-head">
-                    <label><input type="checkbox" class="pl-group-check" checked></label>
+                    <label><input type="checkbox" class="pl-group-check"${has_missing ? '' : ' checked'}></label>
                     <div class="pl-item-group-info">
                         <div class="pl-item-group-title">${esc(group.item_code)}${group.item_name && group.item_name !== group.item_code ? ' — ' + esc(group.item_name) : ''}</div>
                         <div class="pl-item-group-sub">${group.warehouse ? esc(group.warehouse) + ' · ' : ''}${group.qty !== '' ? __('Qty') + ' ' + esc(group.qty) + (group.uom ? ' ' + esc(group.uom) : '') + ' · ' : ''}${__('{0} serial number(s)', [group.ids.length])}${printed_count ? ' · ' + __('{0} already printed', [printed_count]) : ''}</div>
+                        ${has_missing ? `<div class="pl-row-error">${__('Missing values for: {0}', [esc(group.missing.join(', '))])}</div>` : ''}
                     </div>
                     <button type="button" class="btn btn-xs btn-default pl-group-print">${__('Print This Item')}</button>
                 </div>
@@ -384,7 +411,7 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
             const $serials = $group.find('.pl-item-group-serials');
             group.ids.forEach((id, sidx) => {
                 const already = printed_set.has(id);
-                $serials.append(`<label class="pl-serial-chip"><input type="checkbox" class="pl-serial-check" data-gidx="${gidx}" data-sidx="${sidx}" checked> ${esc(id)} ${already ? `<span class="pl-tag-printed">${__('printed')}</span>` : ''}</label>`);
+                $serials.append(`<label class="pl-serial-chip"><input type="checkbox" class="pl-serial-check" data-gidx="${gidx}" data-sidx="${sidx}"${has_missing ? '' : ' checked'}> ${esc(id)} ${already ? `<span class="pl-tag-printed">${__('printed')}</span>` : ''}</label>`);
             });
             $group.find('.pl-group-print').on('click', async (e) => { e.stopPropagation(); await print_groups({ [gidx]: group.ids }, false, null, 1); await load_step4(); });
             $group.find('.pl-group-check').on('change', function () { $group.find('.pl-serial-check').prop('checked', $(this).is(':checked')); update_count(); });
@@ -399,12 +426,30 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
             $all.find('.pl-count').text(__('{0} of {1} selected', [all_checkboxes().filter(':checked').length, all_checkboxes().length]));
         }
         all_checkboxes().on('change', update_count);
+
+        function apply_row_filter() {
+            const q = $all.find('.pl-item-search').val().toLowerCase().trim();
+            const mode = $all.find('.pl-row-filter').val();
+            let visible = 0;
+            $groups.find('.pl-item-group').each(function () {
+                const $g = $(this);
+                let hide = !!q && $g.attr('data-search').indexOf(q) === -1;
+                if (!hide && mode === 'complete') hide = $g.attr('data-complete') !== '1';
+                if (!hide && mode === 'incomplete') hide = $g.attr('data-complete') !== '0';
+                if (!hide && mode === 'unprinted') hide = $g.attr('data-printed') === '1';
+                $g.toggleClass('pl-hidden', hide);
+                if (!hide) visible++;
+            });
+            $all.find('.pl-filter-info').remove();
+            const total = $groups.find('.pl-item-group').length;
+            if (visible < total) {
+                $all.find('.pl-items-toolbar').after(`<div class="pl-filter-info text-muted" style="font-size:11px;margin-bottom:6px">${__('Showing {0} of {1} rows', [visible, total])}</div>`);
+            }
+        }
         $all.find('.pl-select-all').on('click', () => { $groups.find('.pl-item-group:not(.pl-hidden) .pl-serial-check').prop('checked', true); update_count(); });
         $all.find('.pl-select-none').on('click', () => { all_checkboxes().prop('checked', false); update_count(); });
-        $all.find('.pl-item-search').on('input', function () {
-            const q = $(this).val().toLowerCase().trim();
-            $groups.find('.pl-item-group').each(function () { $(this).toggleClass('pl-hidden', !!q && $(this).attr('data-search').indexOf(q) === -1); });
-        });
+        $all.find('.pl-item-search').on('input', apply_row_filter);
+        $all.find('.pl-row-filter').on('change', apply_row_filter);
         $all.find('.pl-is-reprint').on('change', function () { $all.find('.pl-reprint-reason').toggle($(this).is(':checked')); });
         $all.find('.pl-print-selected').on('click', async function () {
             const reprint = $all.find('.pl-is-reprint').is(':checked');
@@ -432,19 +477,23 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
         `);
         const $rowSelect = $one.find('.pl-row-select');
         groups.forEach((group, gidx) => {
-            $rowSelect.append($('<option>').val(gidx).text(`${group.item_code}${group.item_name && group.item_name !== group.item_code ? ' — ' + group.item_name : ''} (${group.ids.length} ${__('serial(s)')})`));
+            $rowSelect.append($('<option>').val(gidx).text(`${group.item_code}${group.item_name && group.item_name !== group.item_code ? ' — ' + group.item_name : ''} (${group.ids.length} ${__('serial(s)')})${group.missing.length ? '  ⚠ ' + __('missing values') : ''}`));
         });
         $rowSelect.on('change', function () {
             const gidx = $(this).val();
             const $detail = $one.find('.pl-row-detail').empty();
             if (gidx === '') return;
             const group = groups[gidx];
+            if (group.missing.length) {
+                $detail.append(`<div class="pl-row-error" style="margin-top:10px">${__('This row is missing values for: {0}. Those areas will print blank.', [esc(group.missing.join(', '))])}</div>`);
+            }
             $detail.append(`<div class="pl-panel-title" style="margin-top:10px">${__('Values for this row')}</div>`);
             $detail.append(`<div class="pl-item-groups" style="max-height:220px"></div>`);
             const $vals = $detail.find('.pl-item-groups');
             template_fields.forEach(f => {
                 const value = f.scope === 'child' ? group.row[f.value] : doc[f.value];
-                $vals.append(`<div class="pl-item-group"><div class="pl-item-group-head" style="background:none"><div class="pl-item-group-info"><div class="pl-item-group-title" style="font-size:12px">${esc(f.label)}</div><div class="pl-item-group-sub">${esc(value === undefined || value === null || value === '' ? '—' : value)}</div></div></div></div>`);
+                const empty = value === undefined || value === null || value === '';
+                $vals.append(`<div class="pl-item-group${empty ? ' pl-row-incomplete' : ''}"><div class="pl-item-group-head" style="background:none"><div class="pl-item-group-info"><div class="pl-item-group-title" style="font-size:12px">${esc(f.label)}</div><div class="${empty ? 'pl-row-error' : 'pl-item-group-sub'}">${empty ? __('(no value)') : esc(value)}</div></div></div></div>`);
             });
             $detail.append(`<div class="pl-panel-title" style="margin-top:10px">${__('Serial numbers')}</div>`);
             $detail.append(`<div class="pl-item-group-serials" style="padding-left:0"></div>`);
