@@ -98,10 +98,28 @@ label_printing.get_row_serials = async function(row) {
     return [];
 };
 
-label_printing.resolve_row_identities = async function(row) {
+// True when the row is meant to carry serial numbers at all -- i.e. it has
+// a Serial and Batch Bundle link or a legacy serial_no text field. Used to
+// tell "this row should have serials but we couldn't read them" (an error
+// worth surfacing) apart from "this row simply isn't serial-tracked"
+// (fine -- one label per row).
+label_printing.row_is_serial_tracked = function (row) {
+    return !!(row && (row.serial_and_batch_bundle || row.serial_no));
+};
+
+label_printing.resolve_row_identities = async function(row, parent_name) {
     const serials = await label_printing.get_row_serials(row);
     if (serials.length) return serials;
-    // Generic fallback for child tables with no serial/batch tracking at all:
-    // one label per row, identified by the row's own unique name.
-    return row && row.name ? [row.name] : [];
+    if (label_printing.row_is_serial_tracked(row)) {
+        // The row is serial-tracked but we couldn't resolve any serials
+        // (e.g. the bundle has no entries yet). Return nothing rather than
+        // inventing an identity -- never fall back to row.name here, which
+        // is Frappe's internal random hash for the child row and would get
+        // printed on the label as if it were a real serial number.
+        return [];
+    }
+    // Not serial-tracked at all: one label per row, identified readably by
+    // the parent document and row number.
+    if (!row) return [];
+    return [`${parent_name || row.parent || ''}-${row.idx}`.replace(/^-/, '')];
 };

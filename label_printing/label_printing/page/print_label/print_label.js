@@ -274,10 +274,16 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
     // ---- Step 4: Items / Copies (shown once BOTH template + document are chosen) --
     async function load_step4() {
         const $panel = $r.find('.pl-step-4').removeClass('pl-disabled').empty();
-        const printed = await api('label_printing.api.get_reprint_candidates', { source_doctype: state.doctype, source_name: state.doc_name });
-        const printed_set = new Set(printed || []);
-        if (state.template.source_child_table) await render_item_table($panel, printed_set);
-        else await render_document_level($panel);
+        try {
+            const printed = await api('label_printing.api.get_reprint_candidates', { source_doctype: state.doctype, source_name: state.doc_name });
+            const printed_set = new Set(printed || []);
+            if (state.template.source_child_table) await render_item_table($panel, printed_set);
+            else await render_document_level($panel);
+        } catch (e) {
+            console.error(e);
+            $panel.html(`<div class="pl-panel-title"><span class="pl-step">4</span>${__('Print labels')}</div>
+                <div style="color:var(--red-600,#c0392b);white-space:pre-wrap">${__('Could not load this step.')}\n\n${esc(e && (e.message || e.responseText) || e)}</div>`);
+        }
     }
 
     async function render_item_table($panel, printed_set) {
@@ -285,9 +291,13 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
         const doc = await api('frappe.client.get', { doctype: state.doctype, name: state.doc_name });
         const rows = doc[state.template.source_child_table] || [];
         const groups = [];
+        const unresolved = [];
         for (const row of rows) {
-            const ids = await label_printing.resolve_row_identities(row);
-            if (!ids.length) continue;
+            const ids = await label_printing.resolve_row_identities(row, state.doc_name);
+            if (!ids.length) {
+                if (label_printing.row_is_serial_tracked(row)) unresolved.push(row.item_code || row.item || ('#' + row.idx));
+                continue;
+            }
             groups.push({
                 row, ids,
                 item_code: row.item_code || row.item || '',
@@ -296,6 +306,9 @@ frappe.pages['print-label'].on_page_load = function (wrapper) {
                 qty: row.qty !== undefined ? row.qty : '',
                 uom: row.uom || row.stock_uom || '',
             });
+        }
+        if (unresolved.length) {
+            $panel.append(`<div class="text-muted" style="margin-bottom:8px">${__('Could not read serial numbers for: {0}. Check that the Serial and Batch Bundle on those rows actually contains serial entries.', [esc(unresolved.join(', '))])}</div>`);
         }
         if (!groups.length) { $panel.append(`<div class="text-muted">${__('No serial numbers / rows found on this document.')}</div>`); return; }
 

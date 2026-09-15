@@ -70,6 +70,48 @@ def preview_label(source_doctype,source_name,template,serial_no=None,child_table
     return {'zpl':render_label(template_doc,parent,row,serial_no,printer or template_doc.printer)}
 
 
+def _validate_serials_against_source(template_doc, source_doctype, source_name, child_row_idx, serials):
+    """Guard against printing a bogus identity onto a physical label.
+
+    If the template is bound to a child table and that row genuinely carries
+    serial numbers (via a Serial and Batch Bundle or the legacy serial_no
+    text field), then anything submitted for printing must be one of those
+    serials. This exists because a client-side fallback once passed the
+    child row's internal random hash (row.name) through as if it were a
+    serial number -- a mistake that is invisible until it is physically
+    printed on a label and stored in the print log."""
+    if not template_doc.source_child_table or not child_row_idx:
+        return
+    try:
+        source = frappe.get_doc(source_doctype, source_name)
+        row = next((r for r in (source.get(template_doc.source_child_table) or []) if int(r.idx) == int(child_row_idx)), None)
+        if not row:
+            return
+        known = set()
+        bundle = row.get('serial_and_batch_bundle')
+        if bundle:
+            bundle_doc = frappe.get_doc('Serial and Batch Bundle', bundle)
+            for entry in (bundle_doc.get('entries') or []):
+                if entry.get('serial_no'):
+                    known.add(entry.get('serial_no'))
+        legacy = row.get('serial_no')
+        if legacy:
+            for part in str(legacy).replace(',', '\n').split('\n'):
+                part = part.strip()
+                if part:
+                    known.add(part)
+        if not known:
+            return
+        unknown = [s for s in serials if s not in known]
+        if unknown:
+            frappe.throw(_('These are not valid serial numbers on this document: {0}').format(', '.join(unknown[:10])))
+    except frappe.ValidationError:
+        raise
+    except Exception:
+        # Never block a legitimate print because this cross-check itself failed.
+        frappe.log_error(frappe.get_traceback(), 'Label Printing: serial validation check failed')
+
+
 @frappe.whitelist()
 def create_print_job(source_doctype,source_name,template,printer,serials,child_table=None,child_row_idx=None,reprint=False,reprint_reason=None):
     if isinstance(serials,str): serials=frappe.parse_json(serials)
@@ -77,6 +119,7 @@ def create_print_job(source_doctype,source_name,template,printer,serials,child_t
     if reprint and not reprint_reason: frappe.throw(_('Reprint reason is required.'))
     template_doc=frappe.get_doc('Label Template',template)
     if template_doc.status!='Active': frappe.throw(_('Only an Active template can be printed.'))
+    _validate_serials_against_source(template_doc,source_doctype,source_name,child_row_idx,serials)
     max_width=flt(frappe.db.get_value('Manage Printer',printer,'maximum_print_width_mm') or 0)
     if max_width and flt(template_doc.label_width_mm)>max_width: frappe.throw(_('Label width exceeds printer maximum printable width.'))
     job=frappe.get_doc({'doctype':'Label Print Job','source_doctype':source_doctype,'source_name':source_name,'template':template,'template_version':template_doc.version,'printer':printer,'reprint':int(bool(reprint)),'reprint_reason':reprint_reason})
