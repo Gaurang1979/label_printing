@@ -1,0 +1,15 @@
+LICENSE
+README.md
+pyproject.toml
+label_printing/__init__.py
+label_printing/api.py
+label_printing/hooks.py
+label_printing/zpl.py
+label_printing.egg-info/PKG-INFO
+label_printing.egg-info/SOURCES.txt
+label_printing.egg-info/dependency_links.txt
+label_printing.egg-info/top_level.txt
+label_printing/label_printing/doctype/label_print_job/label_print_job.py
+label_printing/label_printing/doctype/label_template/label_template.py
+label_printing/label_printing/doctype/manage_printer/manage_printer.py
+label_printing/label_printing/doctype/user_printer_preference/user_printer_preference.py
