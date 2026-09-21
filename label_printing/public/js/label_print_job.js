@@ -7,6 +7,7 @@ frappe.ui.form.on("Label Print Job", {
         if (frm.is_new()) return;
         if (frm.doc.docstatus === 1 && ["Queued", "Printing", "Paused"].includes(frm.doc.status)) {
             frm.add_custom_button(__("Print / Resume"), () => label_printing.execute_job_by_name(frm.doc.name, frm));
+            frm.add_custom_button(__("Print (PDF)"), () => label_printing.execute_job_pdf_by_name(frm.doc.name, frm));
         }
         if (frm.doc.docstatus === 1) {
             frm.add_custom_button(__("Preview Pending"), () => label_printing.preview_pending(frm));

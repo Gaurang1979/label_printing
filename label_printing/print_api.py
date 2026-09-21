@@ -175,6 +175,32 @@ def find_open_job(source_doctype, source_name, template):
 
 
 @frappe.whitelist()
+def get_job_pdf(job):
+    """Render every not-yet-printed item of a Print Job as one PDF -- one
+    page per label, sized exactly to the template's label dimensions --
+    for printing on a normal (non-Zebra) printer. Read-only: unlike the
+    Zebra path (get_label_zpl + mark_printed per serial, called once the
+    browser confirms the send actually succeeded), a browser print dialog
+    gives no such confirmation, so this does not touch job/item status --
+    the frontend asks the user to confirm printing and then calls the
+    existing mark_printed/mark_failed per serial, exactly as it already
+    does for Zebra."""
+    from .pdf_render import render_job_pdf
+
+    job_doc = frappe.get_doc('Label Print Job', job)
+    template = frappe.get_doc('Label Template', job_doc.template)
+    source = frappe.get_doc(job_doc.source_doctype, job_doc.source_name)
+    rows = [r for r in job_doc.items if r.status in ('Pending', 'Failed', 'Paused')]
+    if not rows:
+        frappe.throw(_('Nothing pending to print in this job.'))
+
+    pdf = render_job_pdf(template, source, rows)
+    frappe.local.response.filename = f'{job}.pdf'
+    frappe.local.response.filecontent = pdf
+    frappe.local.response.type = 'pdf'  # inline, not forced download -- lets the browser's own PDF viewer print it
+
+
+@frappe.whitelist()
 def find_reprint_source(serial_no):
     rows=frappe.db.sql('''select source_doctype, source_name, template, template_version, printer from `tabLabel Print Log` where serial_no=%s order by printed_on desc limit 1''',serial_no,as_dict=True)
     return rows[0] if rows else None
