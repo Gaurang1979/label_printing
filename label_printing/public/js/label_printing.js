@@ -71,6 +71,67 @@ label_printing.execute_job_by_name = async function(job_name, frm=null) {
     }));
 };
 
+// PDF equivalent of print_job -- same signature, same job creation/resume
+// logic, but renders to PDF for a normal printer instead of sending ZPL to
+// a Zebra via Browser Print. Drop-in alternative: call this instead of (or
+// alongside) print_job anywhere a "Print" button already calls it.
+label_printing.print_job_pdf = async function(frm,serials,options={}) {
+    if(!serials||!serials.length) return frappe.msgprint(__("Select at least one serial number."));
+    const row=options.row||null,source_doctype=options.source_doctype||(frm&&frm.doctype),source_name=options.source_name||(frm&&frm.doc.name);
+    const printer=options.printer||await label_printing.get_default_printer(frm,row);
+    if(!printer) return frappe.throw(__("No default label printer is configured for this location."));
+    const template=options.template||await new Promise(resolve=>frappe.call({method:"frappe.client.get_list",args:{doctype:"Label Template",filters:{source_doctype,status:"Active",printer},fields:["name"],order_by:"modified desc",limit_page_length:1},callback:r=>resolve((r.message||[])[0]&&r.message[0].name)}));
+    if(!template) return frappe.throw(__("No Active Label Template exists for {0} on printer {1}.",[source_doctype,printer]));
+
+    if (!options.reprint) {
+        const existing = await new Promise(resolve => frappe.call({
+            method: "label_printing.print_api.find_open_job",
+            args: {source_doctype, source_name, template},
+            callback: r => resolve(r.message || null),
+        }));
+        if (existing) {
+            const resume = await new Promise(resolve => frappe.confirm(
+                __("There is an unfinished print job for this document with this template ({0}). Resume printing the remaining labels instead of starting a new job?", [existing]),
+                () => resolve(true), () => resolve(false)
+            ));
+            if (resume) return label_printing.execute_job_pdf_by_name(existing, frm);
+        }
+    }
+
+    const job=await new Promise((resolve,reject)=>frappe.call({method:"label_printing.print_api.create_print_job",args:{source_doctype,source_name,template,printer,serials,child_table:options.child_table||null,child_row_idx:row?row.idx:null,reprint:!!options.reprint,reprint_reason:options.reprint_reason||null},callback:r=>r.message?resolve(r.message):reject(new Error(__("Unable to create print job."))),error:reject}));
+    frappe.show_alert({message:__("Print Job {0} created",[job]),indicator:"green"});await label_printing.execute_job_pdf_by_name(job);return job;
+};
+
+// Opens a PDF (one page per pending label, sized to the template) in a new
+// tab for printing on any normal printer. There is no callback confirming
+// a browser print dialog actually completed, so -- unlike the Zebra path,
+// which marks each label printed only once BrowserPrint's own send()
+// callback succeeds -- this asks the user to confirm, then marks every
+// label in the PDF printed (or failed) via the same mark_printed /
+// mark_failed calls the Zebra path uses, so job status/history stay
+// identical either way.
+label_printing.execute_job_pdf_by_name = async function(job_name, frm=null) {
+    const job = await frappe.call({method:"frappe.client.get", args:{doctype:"Label Print Job", name:job_name}}).then(r=>r.message);
+    if (!job) return;
+    const rows = (job.items || []).filter(r => ["Pending","Failed","Paused"].includes(r.status));
+    if (!rows.length) return frappe.msgprint(__("There are no pending labels."));
+
+    window.open(`/api/method/label_printing.print_api.get_job_pdf?job=${encodeURIComponent(job_name)}`, "_blank");
+
+    const printed = await new Promise(resolve => frappe.confirm(
+        __("A PDF with {0} label(s) opened in a new tab. Once you've printed it, mark these labels as printed?", [rows.length]),
+        () => resolve(true), () => resolve(false)
+    ));
+    for (const row of rows) {
+        await frappe.call({
+            method: printed ? "label_printing.print_api.mark_printed" : "label_printing.print_api.mark_failed",
+            args: printed ? {job: job_name, serial_no: row.serial_no} : {job: job_name, serial_no: row.serial_no, error_message: __("PDF print not confirmed by user")},
+        });
+    }
+    if (frm) await frm.reload_doc();
+    frappe.show_alert({message: printed ? __("Labels marked as printed") : __("Left as pending -- use Print / Resume or Print (PDF) again"), indicator: printed ? "green" : "orange"});
+};
+
 label_printing.preview_pending = async function(frm) {
     const row = (frm.doc.items || []).find(r => ["Pending","Failed","Paused"].includes(r.status));
     if (!row) return frappe.msgprint(__("There are no pending labels."));
